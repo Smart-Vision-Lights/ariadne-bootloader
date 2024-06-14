@@ -45,7 +45,8 @@ ariadne328UW.upload.speed=115200
 ariadne328UW.bootloader.tool=arduino:avrdude
 ariadne328UW.bootloader.low_fuses=0xFF
 ariadne328UW.bootloader.high_fuses=0xD8
-ariadne328UW.bootloader.extended_fuses=0x05
+###[ORIGINAL FUSE VALUE THAT FAILS] ariadne328UW.bootloader.extended_fuses=0x05
+ariadne328UW.bootloader.extended_fuses=0xFD
 ariadne328UW.bootloader.unlock_bits=0x3F
 ariadne328UW.bootloader.lock_bits=0x0F
 
