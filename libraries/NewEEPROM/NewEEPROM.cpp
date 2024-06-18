@@ -65,5 +65,5 @@ void NewEEPROMClass::write(int address , uint8_t value)
 	write(address, value, _offset);
 }
 
-NewEEPROMClass EEPROM;
+NewEEPROMClass NewEEPROM;
 // kate: indent-mode cstyle; indent-width 4; replace-tabs off; tab-width 4;
