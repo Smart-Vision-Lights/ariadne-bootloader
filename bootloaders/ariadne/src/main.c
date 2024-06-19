@@ -127,16 +127,12 @@ int main(void)
         if(timedOut()) {
 			if(eeprom_read_byte(EEPROM_IMG_STAT) == EEPROM_IMG_OK_VALUE) break;
 			
-			//DBG_MAIN(tracePGMlnMain(mDebugMain_TITLE);)
 
 			//TODO: determine the conditions for reseting server OR reseting socket
 			if(tftpFlashing == TRUE) {
-				DBG_MAIN(tracePGMlnMain(mDebugMain_TITLE);)
 				// Delete first page of flash memory
-                		//boot_page_erase(0);
-                		// Reinitialize SPI
-				spiInit();
-				// Reinitialize
+                		boot_page_erase(0);
+				// Reinitialize networking
 				netInit();
 				// Reinitialize TFTP
 				tftpInit();
