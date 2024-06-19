@@ -131,7 +131,7 @@ int main(void)
 			//TODO: determine the conditions for reseting server OR reseting socket
 			if(tftpFlashing == TRUE) {
 				// Delete first page of flash memory
-                		boot_page_erase(0);
+				//boot_page_erase(0); [Disabled because it causes weird issues with resetting the TFTP stuff]
 				// Reinitialize networking
 				netInit();
 				// Reinitialize TFTP
