@@ -115,9 +115,9 @@ int main(void)
 			if(tftpPoll() == 0) break;
 
 		// If there is no tftp flashing, poll serial
-		if(!tftpFlashing)
+		//if(!tftpFlashing)
 			// If flashing is done exit
-			if(serialPoll() == 0) break;
+			//if(serialPoll() == 0) break;
 
 		/* As explained above this goes out */
 #if defined(ANNOUNCE)
@@ -126,11 +126,18 @@ int main(void)
 
         if(timedOut()) {
 			if(eeprom_read_byte(EEPROM_IMG_STAT) == EEPROM_IMG_OK_VALUE) break;
+			
+			//DBG_MAIN(tracePGMlnMain(mDebugMain_TITLE);)
 
 			//TODO: determine the conditions for reseting server OR reseting socket
 			if(tftpFlashing == TRUE) {
+				DBG_MAIN(tracePGMlnMain(mDebugMain_TITLE);)
 				// Delete first page of flash memory
-                boot_page_erase(0);
+                		//boot_page_erase(0);
+                		// Reinitialize SPI
+				spiInit();
+				// Reinitialize
+				netInit();
 				// Reinitialize TFTP
 				tftpInit();
 				// Reset the timeout counter
