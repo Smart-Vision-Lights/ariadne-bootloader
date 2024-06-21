@@ -26,6 +26,7 @@
 #endif
 
 
+
 int  main(void) __attribute__ ((OS_main)) __attribute__ ((section (".init9")));
 void appStart(void) __attribute__ ((naked));
 
@@ -48,12 +49,15 @@ int main(void)
 	 * eternal reset loop of doom and despair */
     ch = MCUSR;
     MCUSR = 0;
-    //if(ch & (_BV(WDRF) | _BV(BORF) | _BV(PORF))) {
-    //    if(eeprom_read_byte(EEPROM_IMG_STAT) == EEPROM_IMG_OK_VALUE) {
-    //        wdt_disable();
-    //        appStart();
-    //    }
-    //}
+    // Disable this chunk if we want to run the bootloader every time we power on (whether there is valid code on the device or not)
+#if !defined(__ALWAYS_BOOTLOAD__)
+    if(ch & (_BV(WDRF) | _BV(BORF) | _BV(PORF))) {
+       if(eeprom_read_byte(EEPROM_IMG_STAT) == EEPROM_IMG_OK_VALUE) {
+           wdt_disable();
+           appStart();
+       }
+    }
+#endif
 	wdt_enable(WDTO_8S);
 
 	// Wait to ensure startup of W5100
@@ -113,12 +117,13 @@ int main(void)
 		if(!serialFlashing)
 			// If tftp recieved a FINAL_ACK, break
 			if(tftpPoll() == 0) break;
-
-		// If there is no tftp flashing, poll serial
-		//if(!tftpFlashing)
-			// If flashing is done exit
-			//if(serialPoll() == 0) break;
-
+			// Exclude serial bootloading if specified in makefile
+#if !defined(__NO_SERIAL__)
+      // If there is no tftp flashing, poll serial
+      if(!tftpFlashing)
+        // If flashing is done exit
+        if(serialPoll() == 0) break;
+#endif
 		/* As explained above this goes out */
 #if defined(ANNOUNCE)
 		announcePoll();
@@ -130,10 +135,15 @@ int main(void)
 
 			//TODO: determine the conditions for reseting server OR reseting socket
 			if(tftpFlashing == TRUE) {
-				// Delete first page of flash memory
-                		//boot_page_erase(0); [Disabled because it causes weird issues with resetting the TFTP stuff]
-				// Reinitialize networking
+        // Disabled because it causes weird issues with resetting the TFTP stuff with the 32u4_w5500, haven't tested other platforms
+#if !defined(__AVR_ATmega32u4_w5500__)
+        // Delete first page of flash memory
+				  boot_page_erase(0); 
+#endif
+#if defined(__AVR_ATmega32u4_w5500__)
+        // Reinitialize networking (32u4_w5500 requires this for the TFTP to reinitialize properly, haven't tested other platforms)
 				netInit();
+#endif
 				// Reinitialize TFTP
 				tftpInit();
 				// Reset the timeout counter
