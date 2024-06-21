@@ -8,3 +8,4 @@
 *.geany
 *.pdf
 Doxyfile
+/bootloaders/ariadne/32u4/README.txt
