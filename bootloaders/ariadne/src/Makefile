@@ -470,6 +470,7 @@ atmega328_ethernet_isp: HFUSE = D8
 atmega328_ethernet_isp: EFUSE = FD
 atmega328_ethernet_isp: isp
 
+
 atmega32u4_w5100: EXT_OBJ = optiboot.o
 atmega32u4_w5100: TARGET = atmega32u4_w5100
 atmega32u4_w5100: MCU_TARGET = atmega32u4
@@ -486,6 +487,7 @@ atmega32u4_w5100_isp: LFUSE = FF
 atmega32u4_w5100_isp: HFUSE = D8
 atmega32u4_w5100_isp: EFUSE = CB
 atmega32u4_w5100_isp: isp
+
 
 atmega32u4_w5200: EXT_OBJ = optiboot.o
 atmega32u4_w5200: TARGET = atmega32u4_w5200
@@ -504,10 +506,11 @@ atmega32u4_w5200_isp: HFUSE = D8
 atmega32u4_w5200_isp: EFUSE = CB
 atmega32u4_w5200_isp: isp
 
+
 atmega32u4_w5500: EXT_OBJ = optiboot.o
 atmega32u4_w5500: TARGET = atmega32u4_w5500
 atmega32u4_w5500: MCU_TARGET = atmega32u4
-atmega32u4_w5500: CFLAGS += '-D__WIZ_W5500__' '-DBAUD_RATE=115200'
+atmega32u4_w5500: CFLAGS += '-D__WIZ_W5500__' '-DBAUD_RATE=115200' '-D__AVR_ATmega32u4_w5500__'
 atmega32u4_w5500: AVR_FREQ = 16000000L
 atmega32u4_w5500: LDSECTIONS  = -Wl,--section-start=.text=0x7000 #-Wl,--section-start=.version=0x7ffe
 atmega32u4_w5500: $(PROGRAM)_atmega32u4_w5500.hex
@@ -520,6 +523,28 @@ atmega32u4_w5500_isp: LFUSE = FF
 atmega32u4_w5500_isp: HFUSE = D8
 atmega32u4_w5500_isp: EFUSE = CB
 atmega32u4_w5500_isp: isp
+
+
+# Identical to above, except the bootloader runs no matter what on power up, and the serial bootloading is disabled
+atmega32u4_w5500_alwaysBootload_noSerial: EXT_OBJ = optiboot.o
+atmega32u4_w5500_alwaysBootload_noSerial: TARGET = atmega32u4_w5500_alwaysBootload_noSerial
+atmega32u4_w5500_alwaysBootload_noSerial: MCU_TARGET = atmega32u4
+atmega32u4_w5500_alwaysBootload_noSerial: CFLAGS += '-D__WIZ_W5500__' '-DBAUD_RATE=115200' '-D__ALWAYS_BOOTLOAD__' '-D__AVR_ATmega32u4_w5500__' '-D__NO_SERIAL__'
+atmega32u4_w5500_alwaysBootload_noSerial: AVR_FREQ = 16000000L
+atmega32u4_w5500_alwaysBootload_noSerial: LDSECTIONS  = -Wl,--section-start=.text=0x7000 #-Wl,--section-start=.version=0x7ffe
+atmega32u4_w5500_alwaysBootload_noSerial: $(PROGRAM)_atmega32u4_w5500_alwaysBootload_noSerial.hex
+atmega32u4_w5500_alwaysBootload_noSerial: $(PROGRAM)_atmega32u4_w5500_alwaysBootload_noSerial.lst
+atmega32u4_w5500_alwaysBootload_noSerial_isp: atmega32u4_w5500
+atmega32u4_w5500_alwaysBootload_noSerial_isp: TARGET = atmega32u4_w5500_alwaysBootload_noSerial
+atmega32u4_w5500_alwaysBootload_noSerial_isp: MCU_TARGET = atmega32u4
+# Fuse settings from 32u4 Caterina bootloader
+atmega32u4_w5500_alwaysBootload_noSerial_isp: LFUSE = FF
+atmega32u4_w5500_alwaysBootload_noSerial_isp: HFUSE = D8
+atmega32u4_w5500_alwaysBootload_noSerial_isp: EFUSE = CB
+atmega32u4_w5500_alwaysBootload_noSerial_isp: isp
+
+
+
 
 # # Sanguino has a minimum boot size of 1024 bytes, so enable extra functions
 # sanguino: TARGET = atmega644p

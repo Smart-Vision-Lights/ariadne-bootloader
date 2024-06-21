@@ -18,6 +18,8 @@
 #define DBG_BTN(block)
 #define DBG_ANN(block)
 
+//#define DEBUG_ALL 1
+
 #if (DEBUG_ALL > 1)
 	#define DEBUG_MAIN	2
 	#define DEBUG_SPI	2
