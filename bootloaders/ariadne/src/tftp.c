@@ -163,6 +163,15 @@ static uint8_t processPacket(void)
 
 	DBG_TFTP(tracePGMlnTftp(mDebugTftp_RADDR);)
 
+
+  // print out entire buffer to serial port
+  for (uint8_t i = 0; i < TFTP_PACKET_MAX_SIZE; i++)
+  {
+    puthex(buffer[i]);
+  }
+  putch('\n');
+
+
 	// Parse packet
 	uint16_t tftpDataLen = (buffer[6] << 8) + buffer[7];
 	uint16_t tftpOpcode  = (buffer[8] << 8) + buffer[9];
