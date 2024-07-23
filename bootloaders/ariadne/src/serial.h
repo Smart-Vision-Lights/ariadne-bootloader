@@ -53,6 +53,7 @@
 	#endif
 #endif
 
+
 /* Switch in soft UART for hard baud rates */
 #if (F_CPU/BAUD_RATE) > 280 // > 57600 for 16MHz
 	#ifndef SOFT_UART

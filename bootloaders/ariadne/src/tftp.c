@@ -10,6 +10,8 @@
 #include <avr/pgmspace.h>
 #include <util/delay.h>
 #include <avr/boot.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #include "util.h"
 #include "spi.h"
@@ -157,7 +159,7 @@ static uint8_t processPacket(void)
 	)
 
 	// Set up return IP address and port
-	uint8_t i;
+	uint16_t i;
 
 	for(i = 0; i < 6; i++) spiWriteReg(REG_S3_DIPR0 + i, S3_W_CB, buffer[i]);
 
@@ -165,17 +167,33 @@ static uint8_t processPacket(void)
 
 
   // print out entire buffer to serial port
-  // for (uint8_t i = 0; i < TFTP_PACKET_MAX_SIZE; i++)
-  // {
-  //   puthex(buffer[i]);
-  // }
-  // Print out the header? information without the hex data
-  for (uint8_t i = 0; i < 12; i++)
+  for (i = 0; i < TFTP_PACKET_MAX_SIZE; i++)
   {
-    //puthex(buffer[i]);
-    putint(buffer[i]);
-    putch(' ');
+    putch(buffer[i]);
+    // putint(buffer[i]);
+    // putch(' ');
+    // putch(buffer[i]);
+    // if (buffer[i] == ':' || buffer[i] == '\n' || buffer[i] == '\r')
+    // {
+    //   putch(buffer[i]);
+    // }else
+    // {
+    //   puthex(buffer[i]);
+    // }
   }
+  // Print out the header? information without the hex data
+  // for (i = 0; i < TFTP_PACKET_MAX_SIZE; i++)
+  // {
+  //   char str[4];
+  //   snprintf(str, 4, "%u", buffer[i]);
+  //   //puthex(buffer[i]);
+  //   //putint(buffer[i]);
+  //   for (uint8_t j = 0; str[j] != '\0'; j++)
+  //   {
+  //     putch(str[j]);
+  //   }
+  //   putch(',');
+  // }
   putch('\n');
 
 
