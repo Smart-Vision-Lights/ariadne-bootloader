@@ -165,9 +165,16 @@ static uint8_t processPacket(void)
 
 
   // print out entire buffer to serial port
-  for (uint8_t i = 0; i < TFTP_PACKET_MAX_SIZE; i++)
+  // for (uint8_t i = 0; i < TFTP_PACKET_MAX_SIZE; i++)
+  // {
+  //   puthex(buffer[i]);
+  // }
+  // Print out the header? information without the hex data
+  for (uint8_t i = 0; i < 12; i++)
   {
-    puthex(buffer[i]);
+    //puthex(buffer[i]);
+    putint(buffer[i]);
+    putch(' ');
   }
   putch('\n');
 

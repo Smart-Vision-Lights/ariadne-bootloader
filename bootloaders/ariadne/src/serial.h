@@ -160,6 +160,7 @@ void serialInit(void);
 
 void putch(uint8_t c);
 void puthex(uint8_t c);
+void putint(uint8_t c);
 
 uint8_t getch(void);
 

@@ -11,6 +11,7 @@
 #include <avr/pgmspace.h>
 #include <avr/wdt.h>
 #include <util/delay.h>
+#include <stdio.h>
 
 #include "serial.h"
 #include "watchdog.h"
@@ -60,6 +61,21 @@ void puthex(uint8_t c)
 	//while(!(UART_STATUS_REG & _BV(UART_DATA_REG_EMPTY)));
 	//UART_DATA_REG = c + '0';
 	putch(c + '0');
+}
+
+void putint(uint8_t c)
+{
+    // Buffer to store the conversion
+    char buffer[4]; // Maximum 3 digits + 1 for the null terminator
+
+    // Convert the uint8_t to string using snprintf (safe and compact)
+    snprintf(buffer, 4, "%u", c);
+
+    // Print to serial port
+    for (uint8_t i = 0; buffer[i] != '\0'; i++)
+    {
+      putch(buffer[i]);
+    }
 }
 
 
