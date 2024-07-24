@@ -12,6 +12,7 @@
 #include <avr/boot.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "util.h"
 #include "spi.h"
@@ -41,6 +42,7 @@ uint8_t tftpFlashing = FALSE;
 #ifndef TFTP_RANDOM_PORT
 uint16_t tftpTransferPort;
 #endif
+
 
 static void sockInit(uint16_t port)
 {
@@ -84,6 +86,7 @@ static uint8_t processPacket(void)
 {
 
 	uint8_t buffer[TFTP_PACKET_MAX_SIZE];
+  uint8_t hex[TFTP_PACKET_MAX_SIZE*2];
 	uint16_t readPointer;
 	address_t writeAddr;
 	// Transfer entire packet to RAM
@@ -160,27 +163,13 @@ static uint8_t processPacket(void)
 
 	// Set up return IP address and port
 	uint16_t i;
+  static uint16_t j = 0;
 
 	for(i = 0; i < 6; i++) spiWriteReg(REG_S3_DIPR0 + i, S3_W_CB, buffer[i]);
 
 	DBG_TFTP(tracePGMlnTftp(mDebugTftp_RADDR);)
 
 
-  // print out entire buffer to serial port
-  for (i = 0; i < TFTP_PACKET_MAX_SIZE; i++)
-  {
-    putch(buffer[i]);
-    // putint(buffer[i]);
-    // putch(' ');
-    // putch(buffer[i]);
-    // if (buffer[i] == ':' || buffer[i] == '\n' || buffer[i] == '\r')
-    // {
-    //   putch(buffer[i]);
-    // }else
-    // {
-    //   puthex(buffer[i]);
-    // }
-  }
   // Print out the header? information without the hex data
   // for (i = 0; i < TFTP_PACKET_MAX_SIZE; i++)
   // {
@@ -194,13 +183,94 @@ static uint8_t processPacket(void)
   //   }
   //   putch(',');
   // }
-  putch('\n');
+  //putch('\n');
 
 
 	// Parse packet
 	uint16_t tftpDataLen = (buffer[6] << 8) + buffer[7];
 	uint16_t tftpOpcode  = (buffer[8] << 8) + buffer[9];
 	uint16_t tftpBlock   = (buffer[10] << 8) + buffer[11];
+
+
+  #define TFTP_DATA_START 12
+
+  //char *token = strtok(buffer, ':\n');
+
+  if (tftpOpcode == TFTP_OPCODE_DATA)
+  {
+
+    // Flag to let us know we've begun a new line of hex
+    static uint8_t lineStarted = 0;
+    // How long the current line of hex data is
+    static uint8_t dataLength = 0;
+    // Memory location (not used, but has to be accounted for when indexing the hex line)
+    static char memLoc[4];
+    // Record type (00 is data, 01 is end of file)
+    static char recType[2];
+
+    // Cycle through just the data from the TFTP packet
+    for (i = TFTP_DATA_START; i < tftpDataLen; i++, j++)
+    {
+      // Check for a ':' which indicates the beginning of a new line in the hex file
+      if ( buffer[i] == ':' )
+      {
+        // Set flag
+        lineStarted = 1;
+      }
+      
+      // Check to see if we've started a line of hex data
+      if ( 1 == lineStarted && dataLength > 0 )
+      {
+
+      }else
+      {
+
+
+        // if ( i < tftpDataLen-8 && buffer[i] != '\0' )
+        // {
+
+        // }
+
+        // // Get the size of the line (each hex value is 2 chars long)
+        // char size_chars[] = {buffer[i+1], buffer[i+2]};
+        // // Convert to uint8_t
+        // dataLength = strtol(size_chars, NULL, 16);
+        // // Skip over the memory
+
+      }
+
+
+
+      // Copy data from TFTP packet to buffer for hex lines
+      hex[j] = buffer[i]
+      // putint(buffer[i]);
+      // putch(' ');
+      // putch(buffer[i]);
+      // if (buffer[i] == ':' || buffer[i] == '\n' || buffer[i] == '\r')
+      // {
+      //   putch(buffer[i]);
+      // }else
+      // {
+      //   puthex(buffer[i]);
+      // }
+    }
+
+
+
+    // // Process any complete lines of hex data
+    // while ( NULL != strchr(hex, ':') && NULL != strchr(hex, '\n') )
+    // {
+    //   // Get length of hex data
+    //   // Print out this line to the serial port
+    //   for (i = 0; hex[i] != '\0'; i++)
+    //   {
+    //     // Print out this char
+    //     putch(hex[i]);
+        
+    //   }
+    // }
+
+  }
 
 	DBG_TFTP(
 		tracePGMlnTftp(mDebugTftp_BLOCK);
