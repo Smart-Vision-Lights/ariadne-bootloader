@@ -44,6 +44,9 @@ uint8_t tftpFlashing = FALSE;
 uint16_t tftpTransferPort;
 #endif
 
+// How big of a buffer to fill with binary data from the .hex file
+#define BINARY_BUFFER_SIZE 512
+
 static void sockInit(uint16_t port)
 {
 	DBG_TFTP(
@@ -108,9 +111,11 @@ static uint8_t processPacket(void)
   // Buffer to hold any incomplete hex chars
   static uint8_t overflowBuffer = '\0';
   // Buffer to hold the data to be written to the Atmel
-  uint8_t binaryBuffer[512];
+  static uint8_t binaryBuffer[BINARY_BUFFER_SIZE];
   // uint8_t binaryBufferOverflow[512];
   uint16_t binaryBufferIndex = 0;
+  // Number of times the binary buffer has been filled
+  static uint16_t fillCount = 0;
 
 	uint16_t readPointer;
 	address_t writeAddr;
@@ -256,7 +261,7 @@ static uint8_t processPacket(void)
 	)
 
 	if((tftpOpcode == TFTP_OPCODE_DATA)
-		&& ((tftpBlock > MAX_ADDR / 0x200) || (tftpBlock < highPacket) || (tftpBlock > highPacket + 1)))
+		&& ((fillCount > MAX_ADDR / 0x200) || (tftpBlock < highPacket) || (tftpBlock > highPacket + 1)))
 		tftpOpcode = TFTP_OPCODE_UKN;
 
 	if(tftpDataLen > (0x200 + TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE))
@@ -352,6 +357,8 @@ static uint8_t processPacket(void)
 
         }else if ( 1 == areWaiting && waitIndex >= HEX_HEADER_SIZE )
         {
+          
+
           // Increment i a second time, to process chars by 2's
           i++;
           // // Reset index
@@ -378,7 +385,7 @@ static uint8_t processPacket(void)
               // putch(' ');
 
               // Check to see if the binary buffer is full
-              if ( binaryBufferIndex >= 512 )
+              if ( binaryBufferIndex >= BINARY_BUFFER_SIZE )
               {
                 // Reset index
                 binaryBufferIndex = 0;
@@ -410,9 +417,6 @@ static uint8_t processPacket(void)
             overflowBuffer = curChar;
           }
         }
-
-
-       
       }
 
       // Valid Data Packet -> reset timer
@@ -420,107 +424,121 @@ static uint8_t processPacket(void)
 
       DBG_TFTP(tracePGMlnTftp(mDebugTftp_OPDATA);)
 
+
       // packetLength = 512;
       packetLength = tftpDataLen - (TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE);
       lastPacket = tftpBlock;
-#if defined(RAMPZ)
-      writeAddr = (((address_t)((tftpBlock - 1)/0x80) << 16) | ((address_t)((tftpBlock - 1)%0x80) << 9));
-#else
-      writeAddr = (address_t)((address_t)(tftpBlock - 1) << 9); // Flash write address for this block
-#endif
 
-      if((writeAddr + packetLength) > MAX_ADDR) {
-        // Flash is full - abort with an error before a bootloader overwrite occurs
-        // Application is now corrupt, so do not hand over.
+      // Set the return code before packetLength gets rounded up
+      if(packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
+      else returnCode = ACK;
 
-        DBG_TFTP(tracePGMlnTftp(mDebugTftp_FULL);)
+      if ( 1 == writeData )
+      {
+  #if defined(RAMPZ)
+        writeAddr = (((address_t)((tftpBlock - 1)/0x80) << 16) | ((address_t)((tftpBlock - 1)%0x80) << 9));
+  #else
+        // writeAddr = (address_t)((address_t)(tftpBlock - 1) << 9); // Flash write address for this block
+        writeAddr = (address_t)((address_t)(fillCount - 1) << 9); // Flash write address for this block
+  #endif
 
-        returnCode = ERROR_FULL;
-      } else {
+        if((writeAddr + BINARY_BUFFER_SIZE) > MAX_ADDR) {
+          // Flash is full - abort with an error before a bootloader overwrite occurs
+          // Application is now corrupt, so do not hand over.
 
-        DBG_TFTP(
-          tracePGMlnTftp(mDebugTftp_WRADDR);
-          traceadd(writeAddr);
-        )
+          DBG_TFTP(tracePGMlnTftp(mDebugTftp_FULL);)
 
-        uint8_t* pageBase = buffer + (UDP_HEADER_SIZE + TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE); // Start of block data
-        // uint8_t* pageBase = binaryBuffer; // Start of block data
-        uint16_t offset = 0; // Block offset
+          returnCode = ERROR_FULL;
+        } else {
 
-
-        // Set the return code before packetLength gets rounded up
-        if(packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
-        else returnCode = ACK;
-
-        // Round up packet length to a full flash sector size
-        while(packetLength % SPM_PAGESIZE) packetLength++;
-
-        DBG_TFTP(
-          tracePGMlnTftp(mDebugTftp_PLEN);
-          tracenum(packetLength);
-        )
-
-        if(writeAddr == 0) {
-          // First sector - validate
-          if(!validImage(pageBase)) {
-
-#if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__)
-            /* FIXME: Validity checks. Small programms (under 512 bytes?) don't
-            * have the the JMP sections and that is why app.bin was failing.
-            * When flashing big binaries is fixed, uncomment the break below.*/
-            returnCode = INVALID_IMAGE;
-            break;
-#endif
-          }
-        }
-
-        // Flash packets
-        uint16_t writeValue;
-        for(offset = 0; offset < packetLength;) {
-          writeValue = (pageBase[offset]) | (pageBase[offset + 1] << 8);
-          boot_page_fill(writeAddr + offset, writeValue);
-
-          DBG_TFTP_EX(
-            if((offset == 0) || ((offset == (packetLength - 2)))) {
-              tracePGMlnTftp(mDebugTftp_WRITE);
-              tracenum(writeValue);
-              tracePGM(mDebugTftp_OFFSET);
-              tracenum(writeAddr + offset);
-            }
+          DBG_TFTP(
+            tracePGMlnTftp(mDebugTftp_WRADDR);
+            traceadd(writeAddr);
           )
 
-          offset += 2;
+          // uint8_t* pageBase = buffer + (UDP_HEADER_SIZE + TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE); // Start of block data
+          uint8_t* pageBase = binaryBuffer; // Start of block data
+          uint16_t offset = 0; // Block offset
 
-          if(offset % SPM_PAGESIZE == 0) {
-            boot_page_erase(writeAddr + offset - SPM_PAGESIZE);
-            boot_spm_busy_wait();
-            boot_page_write(writeAddr + offset - SPM_PAGESIZE);
-            boot_spm_busy_wait();
-#if defined(RWWSRE)
-            // Reenable read access to flash
-            boot_rww_enable();
-#endif
+
+          // // Set the return code before packetLength gets rounded up
+          // if(packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
+          // else returnCode = ACK;
+
+          // Round up packet length to a full flash sector size
+          while(packetLength % SPM_PAGESIZE) packetLength++;
+
+          DBG_TFTP(
+            tracePGMlnTftp(mDebugTftp_PLEN);
+            tracenum(packetLength);
+          )
+
+          if(writeAddr == 0) {
+            // First sector - validate
+            if(!validImage(pageBase)) {
+
+  #if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__)
+              /* FIXME: Validity checks. Small programms (under 512 bytes?) don't
+              * have the the JMP sections and that is why app.bin was failing.
+              * When flashing big binaries is fixed, uncomment the break below.*/
+              returnCode = INVALID_IMAGE;
+              break;
+  #endif
+            }
+          }
+
+          // Flash packets
+          uint16_t writeValue;
+          for(offset = 0; offset < BINARY_BUFFER_SIZE;) {
+            writeValue = (pageBase[offset]) | (pageBase[offset + 1] << 8);
+            boot_page_fill(writeAddr + offset, writeValue);
+
+            DBG_TFTP_EX(
+              if((offset == 0) || ((offset == (BINARY_BUFFER_SIZE - 2)))) {
+                tracePGMlnTftp(mDebugTftp_WRITE);
+                tracenum(writeValue);
+                tracePGM(mDebugTftp_OFFSET);
+                tracenum(writeAddr + offset);
+              }
+            )
+
+            offset += 2;
+
+            if(offset % SPM_PAGESIZE == 0) {
+              boot_page_erase(writeAddr + offset - SPM_PAGESIZE);
+              boot_spm_busy_wait();
+              boot_page_write(writeAddr + offset - SPM_PAGESIZE);
+              boot_spm_busy_wait();
+  #if defined(RWWSRE)
+              // Reenable read access to flash
+              boot_rww_enable();
+  #endif
+            }
+          }
+
+          // We've written 1 set of 512 bytes of data, so increment the counter
+          fillCount++;
+
+          if(returnCode == FINAL_ACK) {
+            // Flash is complete
+            // Hand over to application
+
+            DBG_TFTP(tracePGMlnTftp(mDebugTftp_DONE);)
+
+            // Flag the image as valid since we received the last packet
+            eeprom_write_byte(EEPROM_IMG_STAT, EEPROM_IMG_OK_VALUE);
           }
         }
 
-        if(returnCode == FINAL_ACK) {
-          // Flash is complete
-          // Hand over to application
-
-          DBG_TFTP(tracePGMlnTftp(mDebugTftp_DONE);)
-
-          // Flag the image as valid since we received the last packet
-          eeprom_write_byte(EEPROM_IMG_STAT, EEPROM_IMG_OK_VALUE);
+        // Reset binary buffer
+        for (uint16_t k = 0; k < BINARY_BUFFER_SIZE; k++)
+        {
+          binaryBuffer[k] = '\0';
         }
-      }
+        // Reset flag
+        writeData = 0;
 
-      // // Reset binary buffer
-      // for (uint16_t k = 0; k < 512; k++)
-      // {
-      //   binaryBuffer[k] = '\0';
-      // }
-      // // Reset flag
-      // writeData = 0;
+      }
 
 			break;
 
@@ -724,6 +742,9 @@ uint8_t tftpPoll(void)
 
 	if(response == FINAL_ACK) {
 		spiWriteReg(REG_S3_CR, S3_W_CB, CR_CLOSE);
+
+    putch('$');
+
 		// Complete
 		return(0);
 	}
