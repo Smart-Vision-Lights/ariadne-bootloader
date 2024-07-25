@@ -113,7 +113,7 @@ static uint8_t processPacket(void)
   // Buffer to hold the data to be written to the Atmel
   static uint8_t binaryBuffer[BINARY_BUFFER_SIZE];
   // uint8_t binaryBufferOverflow[512];
-  uint16_t binaryBufferIndex = 0;
+  static uint16_t binaryBufferIndex = 0;
   // Number of times the binary buffer has been filled
   static uint16_t fillCount = 0;
 
@@ -241,8 +241,15 @@ static uint8_t processPacket(void)
 
   // Index to tell us how many chars we've let pass by
   static uint8_t waitIndex = 0;
+  // Whether or not we are waiting
   static uint8_t areWaiting = 0;
+  // Whether or not the binary buffer is full and ready to be written
   static uint8_t writeData = 0;
+  // Record type of hex line
+  static uint8_t recordType = '\0';
+  // Last write reached (it will probably be smaller than 512 bytes)
+  uint8_t lastWrite = 0;
+
 
   #define HEX_HEADER_SIZE 9
 
@@ -353,11 +360,23 @@ static uint8_t processPacket(void)
         // Increment waiting counter
         if ( 1 == areWaiting && waitIndex < HEX_HEADER_SIZE )
         {
+          // If the current char is the last one of the record type
+          if ( waitIndex == HEX_HEADER_SIZE-1 )
+          {
+            // Get it
+            recordType = curChar;
+          }
+          // Increment wait index
           waitIndex++;
 
         }else if ( 1 == areWaiting && waitIndex >= HEX_HEADER_SIZE )
         {
-          
+          // Check for record type (00 is Data, 01 is end of file)
+          if ( recordType == '1' )
+          {
+            // We have reached the end of the file
+            break;
+          }
 
           // Increment i a second time, to process chars by 2's
           i++;
@@ -381,12 +400,13 @@ static uint8_t processPacket(void)
               binaryBuffer[binaryBufferIndex++] = binaryVal;
 
               // puthex(binaryVal);
-              putch(binaryVal);
+              // putch(binaryVal);
               // putch(' ');
 
               // Check to see if the binary buffer is full
-              if ( binaryBufferIndex >= BINARY_BUFFER_SIZE )
+              if ( binaryBufferIndex >= BINARY_BUFFER_SIZE || 1 == lastWrite )
               {
+                putch('@');
                 // Reset index
                 binaryBufferIndex = 0;
                 // Set write data flag
@@ -402,6 +422,8 @@ static uint8_t processPacket(void)
               // Reset index
               waitIndex = 0;
               areWaiting = 0;
+              // Reset record type
+              recordType = '\0';
             }
           // Otherwise, store the current char for the next loop
           }else if ( curChar != '\0' )
@@ -435,14 +457,27 @@ static uint8_t processPacket(void)
 
       if ( 1 == writeData )
       {
+        putch('$');
+        // putch('$');
+        // putch('$');
+        // putch('$');
+
   #if defined(RAMPZ)
         writeAddr = (((address_t)((tftpBlock - 1)/0x80) << 16) | ((address_t)((tftpBlock - 1)%0x80) << 9));
   #else
         // writeAddr = (address_t)((address_t)(tftpBlock - 1) << 9); // Flash write address for this block
-        writeAddr = (address_t)((address_t)(fillCount - 1) << 9); // Flash write address for this block
+        writeAddr = (address_t)((address_t)(fillCount) << 9); // Flash write address for this block
   #endif
+        puthex(writeAddr/1000);
+        if((writeAddr + BINARY_BUFFER_SIZE) > MAX_ADDR && 0 == lastWrite)  {
 
-        if((writeAddr + BINARY_BUFFER_SIZE) > MAX_ADDR) {
+          if ( lastWrite == 0 )
+          {
+            putch('*');
+          }else{
+            putch('=');
+          }
+
           // Flash is full - abort with an error before a bootloader overwrite occurs
           // Application is now corrupt, so do not hand over.
 
@@ -538,6 +573,9 @@ static uint8_t processPacket(void)
         // Reset flag
         writeData = 0;
 
+      }else
+      {
+        putch('!');
       }
 
 			break;
@@ -742,9 +780,6 @@ uint8_t tftpPoll(void)
 
 	if(response == FINAL_ACK) {
 		spiWriteReg(REG_S3_CR, S3_W_CB, CR_CLOSE);
-
-    putch('$');
-
 		// Complete
 		return(0);
 	}

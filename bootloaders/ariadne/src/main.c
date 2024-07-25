@@ -160,7 +160,6 @@ int main(void)
 
 	/* Exit to user application */
     wdt_disable();
-    putch('$');
     appStart();
 	//return(0); /* never reached */
 }
