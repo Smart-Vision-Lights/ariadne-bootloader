@@ -112,8 +112,10 @@ static uint8_t processPacket(void)
   static uint8_t overflowBuffer = '\0';
   // Buffer to hold the data to be written to the Atmel
   static uint8_t binaryBuffer[BINARY_BUFFER_SIZE];
-  // uint8_t binaryBufferOverflow[512];
   static uint16_t binaryBufferIndex = 0;
+  // Overflow for binary buffer
+  static uint8_t binaryBufferOverflow[BINARY_BUFFER_SIZE];
+  static uint16_t binaryBufferOverflowIndex = 0;
   // Number of times the binary buffer has been filled
   static uint16_t fillCount = 0;
 
@@ -313,6 +315,7 @@ static uint8_t processPacket(void)
 			break;
 
 		case TFTP_OPCODE_DATA:
+process_data:
       // putch('\n');
 
       // Cycle through the data in the buffer
@@ -324,6 +327,23 @@ static uint8_t processPacket(void)
         uint8_t nextChar;
         // Carriage return check
         uint8_t thirdChar;
+
+        // Restore any data from the last loop
+        if ( binaryBufferOverflowIndex > 0 )
+        {
+          puthex(binaryBufferOverflowIndex);
+          for ( uint16_t j = 0; j <= binaryBufferOverflowIndex; j++ )
+          {
+            // Restore the data to the current buffer
+            binaryBuffer[j] = binaryBufferOverflow[j];
+            // Delete element from overflow
+            binaryBufferOverflow[j] = '\0';
+            // Increment counter
+            binaryBufferIndex++;
+          }
+          // Reset index
+          binaryBufferOverflowIndex = 0;
+        }
 
         // Check for any char left over from last buffer
         if ( overflowBuffer != '\0' )
@@ -396,12 +416,23 @@ static uint8_t processPacket(void)
               uint8_t binaryVal = hexStringToUint8(hexString);
 
               // uint8_t binaryVal = 2;
-              // // Append it to the binary array
-              binaryBuffer[binaryBufferIndex++] = binaryVal;
+
+              // Check to see if the buffer is full
+              if ( writeData != 1 )
+              {
+                // Append it to the binary array
+                binaryBuffer[binaryBufferIndex++] = binaryVal;
+              
+              }else
+              {
+                // Otherwise, add it to the overflow buffer
+                binaryBufferOverflow[binaryBufferOverflowIndex++];
+              }
 
               // puthex(binaryVal);
               // putch(binaryVal);
               // putch(' ');
+
 
               // Check to see if the binary buffer is full
               if ( binaryBufferIndex >= BINARY_BUFFER_SIZE || 1 == lastWrite )
@@ -452,7 +483,7 @@ static uint8_t processPacket(void)
       lastPacket = tftpBlock;
 
       // Set the return code before packetLength gets rounded up
-      if(packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
+      if (packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
       else returnCode = ACK;
 
       if ( 1 == writeData )
@@ -463,20 +494,18 @@ static uint8_t processPacket(void)
         // putch('$');
 
   #if defined(RAMPZ)
-        writeAddr = (((address_t)((tftpBlock - 1)/0x80) << 16) | ((address_t)((tftpBlock - 1)%0x80) << 9));
+        putch('N');
+        // writeAddr = (((address_t)((tftpBlock - 1)/0x80) << 16) | ((address_t)((tftpBlock - 1)%0x80) << 9));
+        writeAddr = (((address_t)((fillCount)/0x80) << 16) | ((address_t)((fillCount)%0x80) << 9));
   #else
+        putch('Y');
         // writeAddr = (address_t)((address_t)(tftpBlock - 1) << 9); // Flash write address for this block
         writeAddr = (address_t)((address_t)(fillCount) << 9); // Flash write address for this block
   #endif
-        puthex(writeAddr/1000);
+        // puthex(writeAddr/1000);
         if((writeAddr + BINARY_BUFFER_SIZE) > MAX_ADDR && 0 == lastWrite)  {
 
-          if ( lastWrite == 0 )
-          {
-            putch('*');
-          }else{
-            putch('=');
-          }
+
 
           // Flash is full - abort with an error before a bootloader overwrite occurs
           // Application is now corrupt, so do not hand over.
@@ -485,6 +514,12 @@ static uint8_t processPacket(void)
 
           returnCode = ERROR_FULL;
         } else {
+          if ( lastWrite == 0 )
+          {
+            putch('*');
+          }else{
+            putch('=');
+          }
 
           DBG_TFTP(
             tracePGMlnTftp(mDebugTftp_WRADDR);
@@ -554,7 +589,22 @@ static uint8_t processPacket(void)
           // We've written 1 set of 512 bytes of data, so increment the counter
           fillCount++;
 
+
           if(returnCode == FINAL_ACK) {
+
+            // Check to make sure there's no data left to write
+            if ( 1 != lastWrite )
+            {
+              // Reset binary buffer
+              for (uint16_t k = 0; k < BINARY_BUFFER_SIZE; k++)
+              {
+                binaryBuffer[k] = '\0';
+              }
+              // Reset flag
+              writeData = 0;
+              // Get the last of the data before exiting
+              goto process_data;
+            }
             // Flash is complete
             // Hand over to application
 
