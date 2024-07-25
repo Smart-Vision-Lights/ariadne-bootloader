@@ -301,7 +301,7 @@ static uint8_t processPacket(void)
 			break;
 
 		case TFTP_OPCODE_DATA:
-      putch('\n');
+      // putch('\n');
 
       // Cycle through the data in the buffer
       for (i = 12; i < TFTP_PACKET_MAX_SIZE; i++)
@@ -337,7 +337,7 @@ static uint8_t processPacket(void)
         }
 
 
-        putch(curChar);
+        // putch(curChar);
         // Look for a ':'
         if ( curChar == ':' )
         {
@@ -362,7 +362,7 @@ static uint8_t processPacket(void)
             // Check to make sure this isn't the checksum
             if ( thirdChar != '\r' )
             {
-              putch('#');
+              // putch('#');
               // // Convert the current hex char pair to binary
               char hexString[] = {curChar, nextChar};
               // uint8_t binaryVal = strtol(hexString, NULL, 16);
@@ -374,7 +374,7 @@ static uint8_t processPacket(void)
               binaryBuffer[binaryBufferIndex++] = binaryVal;
 
               // puthex(binaryVal);
-              // putch(binaryVal);
+              putch(binaryVal);
               // putch(' ');
 
               // Check to see if the binary buffer is full
@@ -389,9 +389,9 @@ static uint8_t processPacket(void)
             // If it is, move the index to the next ':'
             }else
             {
-              putch('!');
+              // putch('!');
               // putch('\n');
-              i+=3;
+              i+=2;
               // Reset index
               waitIndex = 0;
               areWaiting = 0;
