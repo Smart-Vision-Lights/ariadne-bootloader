@@ -93,10 +93,20 @@ uint8_t hexCharToInt(char c) {
     }
 }
 
-uint8_t hexStringToUint8(const char *hexString) {
-    uint8_t highNibble = hexCharToInt(hexString[0]);
-    uint8_t lowNibble = hexCharToInt(hexString[1]);
-    return (highNibble << 4) | lowNibble;
+uint8_t hexStringToUint(const char *hexString, uint8_t size) {
+    
+    uint8_t nibbles[4] = {hexCharToInt(hexString[0]), hexCharToInt(hexString[1]), hexCharToInt(hexString[2]), hexCharToInt(hexString[3])}; 
+    // uint8_t highNibble = hexCharToInt(hexString[0]);
+    // uint8_t lowNibble = hexCharToInt(hexString[1]);
+
+    if ( size == 2 )
+    {
+      return (nibbles[0] << 4) | nibbles[1];
+    }else if (size == 4)
+    {
+      return (nibbles[0] << 12) | (nibbles[1] << 8) | (nibbles[2] << 4) | (nibbles[3]);
+
+    }
 }
 
 // Validates that this is a char 0 through F, or a '\r', which we still need to use for indexing
@@ -258,6 +268,11 @@ static uint8_t processPacket(void)
   static uint8_t writeData = 0;
   // Record type of hex line
   static uint8_t recordType = '\0';
+  // Buffer to hold the address chars of the current hex line
+  static uint8_t hexAddress[4] = {'\0','\0','\0','\0'};
+  static uint8_t hexAddressIndex = 0;
+  // Actual location in memory to write to
+  static uint16_t memoryLocation = 0;
   // Last write reached (it will probably be smaller than 512 bytes)
   static uint8_t lastWrite = 0;
 
@@ -420,6 +435,28 @@ process_data:
         // Increment waiting counter
         if ( 1 == areWaiting && waitIndex < HEX_HEADER_SIZE )
         {
+          // If the current char is one of the 4 address chars
+          if ( waitIndex >= HEX_HEADER_SIZE - 6 && waitIndex <= HEX_HEADER_SIZE-3 && hexAddressIndex < 4 )
+          {
+            // Get the current char
+            hexAddress[hexAddressIndex++] = curChar;
+            // putch(curChar);
+          // Reset buffers when necessary
+          }else if ( hexAddressIndex >= 4 )
+          {
+            //putint(hexStringToUint(hexAddress, 4));
+            // putch(hexStringToUint(hexAddress, 4))
+            
+            // Get memory location
+            memoryLocation = hexStringToUint(hexAddress, 4);
+            
+            // putch('\n');
+            hexAddress[0] = '\0';
+            hexAddress[1] = '\0';
+            hexAddress[2] = '\0';
+            hexAddress[3] = '\0';
+            hexAddressIndex = 0;
+          }
           // If the current char is the last one of the record type
           if ( waitIndex == HEX_HEADER_SIZE-1 )
           {
@@ -457,13 +494,13 @@ process_data:
               char hexString[] = {curChar, nextChar};
               // uint8_t binaryVal = strtol(hexString, NULL, 16);
 
-              putch(curChar);
-              putch(nextChar);
+              // putch(curChar);
+              // putch(nextChar);
 
 
-              uint8_t binaryVal = hexStringToUint8(hexString);
+              uint8_t binaryVal = hexStringToUint(hexString, 2);
 
-
+              // putch(binaryVal);
             
               // uint8_t binaryVal = 2;
 
@@ -497,7 +534,18 @@ process_data:
             // If it is, move the index to the next ':'
             }else
             {
-              putch('\n');
+
+
+              ////// WRITE DATA HERE ///////////
+
+
+
+
+
+
+              //////////////////////////////////
+
+              // putch('\n');
               i+=2;
               // Reset index
               waitIndex = 0;
@@ -612,6 +660,7 @@ process_data:
             // putch(pageBase[offset]);
             // putch(pageBase[offset+1]);
             writeValue = (pageBase[offset]) | (pageBase[offset + 1] << 8);
+            // putch(writeValue);
             boot_page_fill(writeAddr + offset, writeValue);
 
             DBG_TFTP_EX(
