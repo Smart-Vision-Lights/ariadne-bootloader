@@ -99,6 +99,15 @@ uint8_t hexStringToUint8(const char *hexString) {
     return (highNibble << 4) | lowNibble;
 }
 
+// Validates that this is a char 0 through F, or a '\r', which we still need to use for indexing
+uint8_t isHexChar(uint8_t value)
+{
+  return value == '0' || value == '1' || value == '2' || value == '3' || value == '4' || 
+          value == '5' || value == '6' || value == '7' || value == '8' || value == '9' ||
+           value == 'A' || value == 'B' || value == 'C' || value == 'D' || value == 'E' ||
+            value == 'F' || value == '\r';
+}
+
 
 #if (DEBUG_TFTP > 0)
 static uint8_t processPacket(uint16_t packetSize)
@@ -109,7 +118,7 @@ static uint8_t processPacket(void)
   // Added 1 to account for any overflow from the previous hex line
 	uint8_t buffer[TFTP_PACKET_MAX_SIZE];
   // Buffer to hold any incomplete hex chars
-  static uint8_t overflowBuffer = '\0';
+  static uint8_t overflowBuffer[2] = {'\0', '\0'};
   // Buffer to hold the data to be written to the Atmel
   static uint8_t binaryBuffer[BINARY_BUFFER_SIZE];
   static uint16_t binaryBufferIndex = 0;
@@ -319,12 +328,12 @@ static uint8_t processPacket(void)
 			break;
 
 		case TFTP_OPCODE_DATA:
-      // putch('\n');
 process_data:
       // putch('~');
       // Restore any data from the last loop
       if ( binaryBufferOverflowIndex > 0 )
       {
+        // putch('?');
         // puthex(binaryBufferOverflowIndex);
         for ( uint16_t j = 0; j <= binaryBufferOverflowIndex; j++ )
         {
@@ -339,9 +348,20 @@ process_data:
         binaryBufferOverflowIndex = 0;
       }
 
+      // for (i = 12; i < TFTP_PACKET_MAX_SIZE; i++)
+      // {
+      //   if (buffer[i] == '\0') {continue;}
+      //   putch(buffer[i]);
+      // }
+
       // Cycle through the data in the buffer
       for (i = 12; i < TFTP_PACKET_MAX_SIZE; i++)
       {
+        // putch(buffer[i]);
+        // putch(buffer[i+1]);
+
+        // putch(' ');
+
         // Current char to process
         uint8_t curChar;
         // Next char
@@ -350,18 +370,34 @@ process_data:
         uint8_t thirdChar;
 
         // Check for any char left over from last buffer
-        if ( overflowBuffer != '\0' )
+        if ( overflowBuffer[0] != '\0' )
         {
           // Process left over char
-          curChar = overflowBuffer;
+          curChar = overflowBuffer[0];
           // Reset overflow
-          overflowBuffer = '\0';
-          // Next char
-          nextChar = buffer[i];
-          // Carriage return check
-          thirdChar = buffer[i+1];
-          // Ensure we only increment i by 1 and not 2
-          i--;
+          overflowBuffer[0] = '\0';
+
+          // Check for a second overflow char
+          if ( overflowBuffer[1] != '\0' )
+          {
+            // Process left over char
+            nextChar = overflowBuffer[1];
+            // Reset overflow
+            overflowBuffer[1] = '\0';
+            // Carriage return check
+            thirdChar = buffer[i];
+            // Ensure we don't increment i this time around
+            i-=2;
+          }else{
+            // Next char
+            nextChar = buffer[i];
+            // Carriage return check
+            thirdChar = buffer[i+1];
+            // Ensure we only increment i by 1 and not 2
+            i--;
+          }
+
+
         }else
         {
           // Get current char in buffer
@@ -411,7 +447,7 @@ process_data:
           // // Reset index
           // waitIndex = 0;
           // Check to make sure there is data to be read
-          if ( curChar != '\0' && nextChar != '\0' )
+          if ( isHexChar(curChar) && isHexChar(nextChar) && isHexChar(thirdChar) )
           {
             // Check to make sure this isn't the checksum
             if ( thirdChar != '\r' )
@@ -421,8 +457,14 @@ process_data:
               char hexString[] = {curChar, nextChar};
               // uint8_t binaryVal = strtol(hexString, NULL, 16);
 
+              putch(curChar);
+              putch(nextChar);
+
+
               uint8_t binaryVal = hexStringToUint8(hexString);
 
+
+            
               // uint8_t binaryVal = 2;
 
               // Check to see if the buffer is full
@@ -455,7 +497,7 @@ process_data:
             // If it is, move the index to the next ':'
             }else
             {
-
+              putch('\n');
               i+=2;
               // Reset index
               waitIndex = 0;
@@ -463,12 +505,18 @@ process_data:
               // Reset record type
               recordType = '\0';
             }
-          // Otherwise, store the current char for the next loop
-          }else if ( curChar != '\0' )
+          // Otherwise, store the current char(s) for the next time around
+          }else
           {
-
-
-            overflowBuffer = curChar;
+            // putch('!');
+            if ( isHexChar(curChar) )
+            {
+              overflowBuffer[0] = curChar;
+            }
+            if ( isHexChar(nextChar) )
+            {
+              overflowBuffer[1] = nextChar;
+            }
           }
         }
       }
@@ -561,8 +609,8 @@ process_data:
           // Flash packets
           uint16_t writeValue;
           for(offset = 0; offset < BINARY_BUFFER_SIZE;) {
-            putch(pageBase[offset]);
-            putch(pageBase[offset+1]);
+            // putch(pageBase[offset]);
+            // putch(pageBase[offset+1]);
             writeValue = (pageBase[offset]) | (pageBase[offset + 1] << 8);
             boot_page_fill(writeAddr + offset, writeValue);
 
