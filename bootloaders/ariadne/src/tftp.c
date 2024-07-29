@@ -120,6 +120,40 @@ uint8_t isHexChar(uint8_t value)
 }
 
 
+// Buffer to hold the data to be written to the Atmel
+uint8_t binaryBuffer[BINARY_BUFFER_SIZE];
+uint16_t binaryBufferIndex = 0;
+// Buffer to hold any incomplete hex chars
+static uint8_t overflowBuffer[2] = {'\0', '\0'};
+
+// Overflow for binary buffer
+static uint8_t binaryBufferOverflow[BINARY_BUFFER_SIZE];
+static uint16_t binaryBufferOverflowIndex = 0;
+// Number of times the binary buffer has been filled
+static uint16_t fillCount = 0;
+
+// Index to tell us how many chars we've let pass by
+static uint8_t waitIndex = 0;
+// Whether or not we are waiting
+static uint8_t areWaiting = 0;
+// Whether or not the binary buffer is full and ready to be written
+static uint8_t writeData = 0;
+// Record type of hex line
+static uint8_t recordType = '\0';
+// Buffer to hold the address chars of the current hex line
+static char hexAddressChars[4] = {'\0','\0','\0','\0'};
+static uint8_t hexAddressIndex = 0;
+// How big the current line of data is
+static char hexSizeChars[2] = {'\0', '\0'};
+static uint8_t hexSizeCharsIndex = 0;
+static uint16_t hexSize = 0;
+// Actual location in memory to write to
+static uint16_t hexAddress = 0;
+// Last write reached (it will probably be smaller than 512 bytes)
+static uint8_t lastWrite = 0;
+static uint16_t offset = 0; // Block offset
+
+
 #if (DEBUG_TFTP > 0)
 static uint8_t processPacket(uint16_t packetSize)
 #else
@@ -128,16 +162,7 @@ static uint8_t processPacket(void)
 {
   // Added 1 to account for any overflow from the previous hex line
 	uint8_t buffer[TFTP_PACKET_MAX_SIZE];
-  // Buffer to hold any incomplete hex chars
-  static uint8_t overflowBuffer[2] = {'\0', '\0'};
-  // Buffer to hold the data to be written to the Atmel
-  static uint8_t binaryBuffer[BINARY_BUFFER_SIZE];
-  static uint16_t binaryBufferIndex = 0;
-  // Overflow for binary buffer
-  static uint8_t binaryBufferOverflow[BINARY_BUFFER_SIZE];
-  static uint16_t binaryBufferOverflowIndex = 0;
-  // Number of times the binary buffer has been filled
-  static uint16_t fillCount = 0;
+
 
 	uint16_t readPointer;
 	address_t writeAddr;
@@ -261,26 +286,7 @@ static uint8_t processPacket(void)
 	uint16_t tftpOpcode  = (buffer[8] << 8) + buffer[9];
 	uint16_t tftpBlock   = (buffer[10] << 8) + buffer[11];
 
-  // Index to tell us how many chars we've let pass by
-  static uint8_t waitIndex = 0;
-  // Whether or not we are waiting
-  static uint8_t areWaiting = 0;
-  // Whether or not the binary buffer is full and ready to be written
-  static uint8_t writeData = 0;
-  // Record type of hex line
-  static uint8_t recordType = '\0';
-  // Buffer to hold the address chars of the current hex line
-  static char hexAddressChars[4] = {'\0','\0','\0','\0'};
-  static uint8_t hexAddressIndex = 0;
-  // How big the current line of data is
-  static char hexSizeChars[2] = {'\0', '\0'};
-  static uint8_t hexSizeCharsIndex = 0;
-  static uint16_t hexSize = 0;
-  // Actual location in memory to write to
-  static uint16_t hexAddress = 0;
-  // Last write reached (it will probably be smaller than 512 bytes)
-  static uint8_t lastWrite = 0;
-  static uint16_t offset = 0; // Block offset
+
 
 
   #define HEX_HEADER_SIZE 9
@@ -511,8 +517,8 @@ process_data:
           // Check to make sure there is data to be read
           if ( isHexChar(curChar) && isHexChar(nextChar) && isHexChar(thirdChar) )
           {
-            // Check to make sure this isn't the checksum
-            if ( thirdChar != '\r' )
+            // Check to make sure this isn't the checksum, and that we haven't already gathered all the data we need
+            if ( thirdChar != '\r' && binaryBufferIndex < hexSize )
             {
               // putch('#');
               // // Convert the current hex char pair to binary
@@ -529,18 +535,23 @@ process_data:
             
               // uint8_t binaryVal = 2;
 
-              // Check to see if the buffer is full
+              // Check to see if the buffer has all the data we are expecting from this line
               // if ( writeData != 1 )
-              if ( binaryBufferIndex < BINARY_BUFFER_SIZE )
-              {
-                // Append it to the binary array
-                binaryBuffer[binaryBufferIndex++] = binaryVal;
+              // if ( binaryBufferIndex < hexSize )
+              // {
+              // Append it to the binary array
+              binaryBuffer[binaryBufferIndex++] = binaryVal;
+              putch(binaryBuffer[binaryBufferIndex-1]);
               
-              }else
-              {
-                // // Otherwise, add it to the overflow buffer
-                // binaryBufferOverflow[binaryBufferOverflowIndex++];
-              }
+              // }else
+              // {
+              //   putch('~');
+              //   putch('~');
+              //   putch('~');
+
+              //   // // Otherwise, add it to the overflow buffer
+              //   // binaryBufferOverflow[binaryBufferOverflowIndex++];
+              // }
 
               // puthex(binaryVal);
               // putch(binaryVal);
@@ -561,7 +572,9 @@ process_data:
             }else
             {
 
-
+              putch('!');
+              putch('!');
+              putch('!');
         //   //     ////// WRITE DATA HERE ///////////
 
 
@@ -619,7 +632,7 @@ process_data:
                 // }
 
                 // uint8_t* pageBase = buffer + (UDP_HEADER_SIZE + TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE); // Start of block data
-                uint8_t* pageBase = binaryBuffer; // Start of block data
+                //uint8_t* pageBase = binaryBuffer; // Start of block data
 
 
                 // // Set the return code before packetLength gets rounded up
@@ -646,7 +659,7 @@ process_data:
 
 
                 uint16_t writeValue;
-                uint16_t offsetStart = offset;
+                uint8_t index = 0;
 
                 // Flash packets
                 // for(offset = 0; offset < packetLength;) {
@@ -656,17 +669,20 @@ process_data:
                   // puthex(writeAddr);
 
 
-
-                  puthex(offset - offsetStart);
                   putch(':');
-                  putch(pageBase[offset]);
+                  puthex(index);
+                  putch(':');
+                  // putch( (binaryBuffer[index] == 0 ? '<' : '>') );
+                  putch( binaryBuffer[index] );
+
                   // putch(pageBase[offset+1]);
                   // writeValue = (pageBase[offset]) | (pageBase[offset + 1] << 8);
                   // writeValue = 3;
                   // boot_page_fill(writeAddr + offset, writeValue);
                   // putch(writeValue);
                   putch(':');
-                  offset += 2;
+                  offset+=2;
+                  index+=2;
                   putch(packetLength);
                   putch('\n');
                   // putch((offset - offsetStart < packetLength) == 1 ? '1' : '0' );
@@ -681,18 +697,22 @@ process_data:
         //             boot_rww_enable();
         // #endif
         //           }
-                } while( offset - offsetStart < packetLength );
+                } while( index < packetLength );
+
+
+                // Reset binary buffer
+                for (uint8_t k = 0; k < BINARY_BUFFER_SIZE; k++)
+                {
+                  binaryBuffer[k] = '\0';
+                }
+
+                binaryBufferIndex = 0;
+
               }
               //////////////////////////////////
 
 
-              // Reset binary buffer
-              for (uint16_t k = 0; k < BINARY_BUFFER_SIZE; k++)
-              {
-                binaryBuffer[k] = '\0';
-              }
 
-              binaryBufferIndex = 0;
 
               // putch('\n');
               i+=2;
@@ -839,31 +859,31 @@ process_data:
   //         fillCount++;
 
 
-        if(returnCode == FINAL_ACK) {
+        // if(returnCode == FINAL_ACK) {
 
-          // // Check to make sure there's no data left to write
-          // if ( binaryBufferOverflowIndex > 0 )
-          // {
-          //   // Reset binary buffer
-          //   for (uint16_t k = 0; k < BINARY_BUFFER_SIZE; k++)
-          //   {
-          //     binaryBuffer[k] = '\0';
-          //   }
-          //   // Reset flag
-          //   writeData = 0;
-          //   // putch('%');
-          //   // Get the last of the data before exiting
-          //   goto process_data;
-          //   // processPacket();
-          // }
-          // Flash is complete
-          // Hand over to application
-          offset = 0;
-          DBG_TFTP(tracePGMlnTftp(mDebugTftp_DONE);)
+        //   // // Check to make sure there's no data left to write
+        //   // if ( binaryBufferOverflowIndex > 0 )
+        //   // {
+        //   //   // Reset binary buffer
+        //   //   for (uint16_t k = 0; k < BINARY_BUFFER_SIZE; k++)
+        //   //   {
+        //   //     binaryBuffer[k] = '\0';
+        //   //   }
+        //   //   // Reset flag
+        //   //   writeData = 0;
+        //   //   // putch('%');
+        //   //   // Get the last of the data before exiting
+        //   //   goto process_data;
+        //   //   // processPacket();
+        //   // }
+        //   // Flash is complete
+        //   // Hand over to application
+        //   offset = 0;
+        //   DBG_TFTP(tracePGMlnTftp(mDebugTftp_DONE);)
 
-          // Flag the image as valid since we received the last packet
-          eeprom_write_byte(EEPROM_IMG_STAT, EEPROM_IMG_OK_VALUE);
-        }
+        //   // Flag the image as valid since we received the last packet
+        //   eeprom_write_byte(EEPROM_IMG_STAT, EEPROM_IMG_OK_VALUE);
+        // }
         // }
 
 
