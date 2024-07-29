@@ -449,16 +449,28 @@ process_data:
             hexSizeChars[hexSizeCharsIndex++] = curChar;
 
           // If the current char is one of the 4 address chars
-          }else if ( waitIndex >= HEX_HEADER_SIZE - 6 && waitIndex <= HEX_HEADER_SIZE-3 && hexAddressIndex < 4 )
+          }else if ( waitIndex >= HEX_HEADER_SIZE - 6 && waitIndex <= HEX_HEADER_SIZE - 3 && hexAddressIndex < 4 )
           {
+            if ( hexSizeChars[0] != '\0' )
+            {
+              // Get size of line
+              hexSize = hexStringToUint(hexSizeChars, 2);
+              // putch(hexSize);
+              // putch('\n');
+
+              // Reset char and index buffers
+              hexSizeChars[0] = '\0';
+              hexSizeChars[1] = '\0';
+              hexSizeCharsIndex = 0;
+            }
             // Get the current char
             hexAddressChars[hexAddressIndex++] = curChar;
             // putch(curChar);
           // Reset buffers when necessary
           }else if ( hexAddressIndex >= 4 )
           {
-            //putint(hexStringToUint(hexAddress, 4));
-            // putch(hexStringToUint(hexAddress, 4))
+            //putint(hexStringToUint(hexAddressChars, 4));
+            // putch(hexStringToUint(hexAddressChars, 4));
             
             // Get memory location
             hexAddress = hexStringToUint(hexAddressChars, 4);
@@ -550,16 +562,16 @@ process_data:
             {
 
 
-          //     ////// WRITE DATA HERE ///////////
+        //   //     ////// WRITE DATA HERE ///////////
 
 
               // Valid Data Packet -> reset timer
               resetTick();
 
-              // Get size of line
-              hexSize = hexStringToUint(hexSizeChars, 2);
 
+              // Set packet length to size of hex line
               packetLength = hexSize;
+
               // // packetLength = tftpDataLen - (TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE);
               // lastPacket = tftpBlock;
 
@@ -572,7 +584,11 @@ process_data:
               // putch('$');
               // putch('$');
 
+              // Get address where to write current line
               writeAddr = hexAddress;
+              // putch(writeAddr);
+              // // Reset hex address
+              // hexAddress = '\0';
 
         // #if defined(RAMPZ)
         //       // putch('N');
@@ -627,30 +643,47 @@ process_data:
         //           }
                 }
 
-                // Flash packets
+
+
                 uint16_t writeValue;
+                uint16_t offsetStart = offset;
+
+                // Flash packets
                 // for(offset = 0; offset < packetLength;) {
                 do {
+                  
+
+                  // puthex(writeAddr);
+
+
+
+                  puthex(offset - offsetStart);
+                  putch(':');
                   putch(pageBase[offset]);
-                  putch(pageBase[offset+1]);
-                  writeValue = (pageBase[offset]) | (pageBase[offset + 1] << 8);
+                  // putch(pageBase[offset+1]);
+                  // writeValue = (pageBase[offset]) | (pageBase[offset + 1] << 8);
+                  // writeValue = 3;
+                  // boot_page_fill(writeAddr + offset, writeValue);
                   // putch(writeValue);
-                  boot_page_fill(writeAddr + offset, writeValue);
-
+                  putch(':');
                   offset += 2;
+                  putch(packetLength);
+                  putch('\n');
+                  // putch((offset - offsetStart < packetLength) == 1 ? '1' : '0' );
 
-                  if(offset % SPM_PAGESIZE == 0) {
-                    boot_page_erase(writeAddr + offset - SPM_PAGESIZE);
-                    boot_spm_busy_wait();
-                    boot_page_write(writeAddr + offset - SPM_PAGESIZE);
-                    boot_spm_busy_wait();
-        #if defined(RWWSRE)
-                    // Reenable read access to flash
-                    boot_rww_enable();
-        #endif
-                  }
-                } while( offset % packetLength != 0 );
+        //           if(offset % SPM_PAGESIZE == 0) {
+        //             boot_page_erase(writeAddr + offset - SPM_PAGESIZE);
+        //             boot_spm_busy_wait();
+        //             boot_page_write(writeAddr + offset - SPM_PAGESIZE);
+        //             boot_spm_busy_wait();
+        // #if defined(RWWSRE)
+        //             // Reenable read access to flash
+        //             boot_rww_enable();
+        // #endif
+        //           }
+                } while( offset - offsetStart < packetLength );
               }
+              //////////////////////////////////
 
 
               // Reset binary buffer
@@ -660,7 +693,6 @@ process_data:
               }
 
               binaryBufferIndex = 0;
-              //////////////////////////////////
 
               // putch('\n');
               i+=2;
@@ -693,11 +725,11 @@ process_data:
 
 
       // packetLength = 512;
-      packetLength = tftpDataLen - (TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE);
+      //packetLength = tftpDataLen - (TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE);
       lastPacket = tftpBlock;
 
       // Set the return code before packetLength gets rounded up
-      if (packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
+      if (tftpDataLen - (TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE) < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
       else returnCode = ACK;
 
   //     if ( 1 == writeData )
