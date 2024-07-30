@@ -93,12 +93,12 @@ uint8_t hexCharToInt(char c) {
     }
 }
 
-uint8_t hexStringToUint(const char *hexString, uint8_t size) {
+uint16_t hexStringToUint(const char *hexString, uint8_t size) {
     
     uint8_t nibbles[4] = {hexCharToInt(hexString[0]), hexCharToInt(hexString[1]), hexCharToInt(hexString[2]), hexCharToInt(hexString[3])}; 
     // uint8_t highNibble = hexCharToInt(hexString[0]);
     // uint8_t lowNibble = hexCharToInt(hexString[1]);
-
+    
     if ( size == 2 )
     {
       return (nibbles[0] << 4) | nibbles[1];
@@ -479,10 +479,30 @@ process_data:
           {
             //putint(hexStringToUint(hexAddressChars, 4));
             // putch(hexStringToUint(hexAddressChars, 4));
-            
+            // putch(hexAddressChars[0]);
+            // putch(hexAddressChars[1]);
+            // putch(hexAddressChars[2]);
+            // putch(hexAddressChars[3]);     
             // Get memory location
             hexAddress = hexStringToUint(hexAddressChars, 4);
-            
+
+
+            // for (int i = 15; i >= 0; i--) {
+            //   // Check each bit starting from the most significant bit (MSB)
+            //   uint16_t mask = 1 << i;
+            //   if (hexAddress & mask) {
+            //     putch('1');
+            //   } else {
+            //     putch('0');
+            //   }
+            //   if (i % 4 == 0) { // Optional: format output to group bits for readability
+            //     putch(' ');
+            //   }
+            // }
+
+            // putch('\n');
+
+
             // putch('\n');
             hexAddressChars[0] = '\0';
             hexAddressChars[1] = '\0';
@@ -536,6 +556,29 @@ process_data:
               // putch(nextChar);
               // putch('\n');
 
+              // if ( hexAddress == 0x5FEA )
+              // {
+              //   putch(curChar);
+              //   putch(nextChar);
+              //   // putch('\n');
+              // }else if ( hexAddress == 0x5FFA )
+              // {
+              //   putch(curChar);
+              //   putch(nextChar);
+              //   // putch('\n');
+              // }else if ( hexAddress == 0x600A )
+              // {
+              //   putch(curChar);
+              //   putch(nextChar);
+              //   // putch('\n');
+              // }else if ( hexAddress == 0x601A )
+              // {
+              //   putch(curChar);
+              //   putch(nextChar);
+              //   // putch('\n');
+              // }
+
+
               uint8_t binaryVal = hexStringToUint(hexString, 2);
 
               // putch(binaryVal);
@@ -578,6 +621,8 @@ process_data:
             // If it is, move the index to the next ':'
             }else
             {
+              // putch('#');
+              // putch('\n');
 
               // putch('!');
               // putch('!');
@@ -666,69 +711,86 @@ process_data:
 
 
                 uint16_t writeValue;
+                static uint16_t prevAddress;
+                static uint8_t prevIndex;
                 uint8_t index = 0;
+
+
+
 
                 // Flash packets
                 // for(offset = 0; offset < packetLength;) {
                 do {
                   
-
-                  // puthex(writeAddr);
-
-
-                  // putch(':');
-                  // puthex(index);
-                  // putch(':');
-                  // // putch( (binaryBuffer[index] == 0 ? '<' : '>') );
-                  // putch( binaryBuffer[index] );
-
-
-
                   // putch(pageBase[index]);
                   // putch(pageBase[index+1]);
                   
-                  writeValue = (pageBase[index]) | (pageBase[index + 1] << 8);
-                  // writeValue = 3;
-                  boot_page_fill(writeAddr + index, writeValue);
-                  // putch(writeValue);
-                  // putch(':');
-                  // writeAddr+=2;
-                  offset+=2;
-                  index+=2;
-                  // putch(packetLength);
-                  // putch('\n');
-                  // putch((offset - offsetStart < packetLength) == 1 ? '1' : '0' );
+                  if ( recordType != '1' )
+                  {
+                    writeValue = (pageBase[index]) | (pageBase[index + 1] << 8);
+                    // writeValue = 3;
+                    boot_page_fill(writeAddr + index, writeValue);
+                    // putch(writeValue);
+
+                    offset+=2;
+                    index+=2;
+
+                    // Only write the page if it is full, or we are done writing all data
+                    if( offset % SPM_PAGESIZE == 0 ) {
+                      // putch('!');
+                      boot_page_erase(writeAddr + index - SPM_PAGESIZE);
+                      boot_spm_busy_wait();
+                      boot_page_write(writeAddr + index - SPM_PAGESIZE);
+                      boot_spm_busy_wait();
+          // #if defined(RWWSRE)
+                      // Reenable read access to flash
+                      boot_rww_enable();
+                      
+                      // putch('\n');
+
+                      // Print out what we just wrote
+                      for (int m = writeAddr+index-SPM_PAGESIZE; m < writeAddr+index; m++)
+                      {
+                        putch(pgm_read_byte_near(m));
+                      }
 
 
-                  // Only write the page if it is full, or we are done writing all data
-                  if( offset % SPM_PAGESIZE == 0 || recordType == '1') {
-                    // putch('!');
-                    boot_page_erase(writeAddr + index - SPM_PAGESIZE);
+
+
+          // #endif
+                    }
+                  }else
+                  {
+                    // Round up to the next page
+                    while(prevIndex % SPM_PAGESIZE) prevIndex++;
+                    putch('!');
+                    putch('!');
+                    putch('!');
+                    putch('!');
+
+                    boot_page_erase(prevAddress + prevIndex - SPM_PAGESIZE);
                     boot_spm_busy_wait();
-                    boot_page_write(writeAddr + index - SPM_PAGESIZE);
+                    boot_page_write(prevAddress + prevIndex - SPM_PAGESIZE);
                     boot_spm_busy_wait();
         // #if defined(RWWSRE)
                     // Reenable read access to flash
                     boot_rww_enable();
-                    
-                    
-                    // putch('\n');
-
                     // Print out what we just wrote
-                    for (int m = writeAddr+index-SPM_PAGESIZE; m < writeAddr+index; m++)
+                    for (int m = prevAddress+prevIndex-SPM_PAGESIZE; m < prevAddress+prevIndex; m++)
                     {
                       putch(pgm_read_byte_near(m));
                     }
-                    // putch('\n');
-                    // putch('\n');
-
-
-        // #endif
+                    break;
                   }
                 } while( index < packetLength );
 
+                prevAddress = writeAddr;
+                prevIndex = index;
 
-
+                if ( recordType == '1' )
+                {
+                  break;
+                }
 
 
                 // Reset binary buffer
