@@ -248,52 +248,12 @@ static uint8_t processPacket(void)
 	DBG_TFTP(tracePGMlnTftp(mDebugTftp_RADDR);)
 
 
-
-
-  // // Tokenize the buffer on the linefeed char to get individual lines
-  // char *token = strtok(buffer, '\n');
-
-  // // Loop through all available lines
-  // while ( token != NULL )
-  // {
-  //   // Check for a carriage return (which tells us we have a complete line)
-  //   if ( strchr(token, '\r') != NULL )
-  //   {
-  //     // Get the size of the hex data
-  //   }
-  // }
-
-  // // Print out packet header
-  // for (i = 0; i < 12; i++)
-  // {
-  //   putint(buffer[i]);
-  //   putch(' ');
-  // }
-  // // putch('\n');
-  
-
-  // // print out entire buffer to serial port
-  // for (i = 12; i < TFTP_PACKET_MAX_SIZE; i++)
-  // {
-  //   putch(buffer[i]);
-  // }
-
-  // putch('\n');
-
-
 	// Parse packet
 	uint16_t tftpDataLen = (buffer[6] << 8) + buffer[7];
 	uint16_t tftpOpcode  = (buffer[8] << 8) + buffer[9];
 	uint16_t tftpBlock   = (buffer[10] << 8) + buffer[11];
 
-
-
-
   #define HEX_HEADER_SIZE 9
-
-
-
-
 
 
 	DBG_TFTP(
@@ -355,39 +315,9 @@ static uint8_t processPacket(void)
 			break;
 
 		case TFTP_OPCODE_DATA:
-process_data:
-      // putch('~');
-      // Restore any data from the last loop
-      // if ( binaryBufferOverflowIndex > 0 )
-      // {
-      //   // putch('?');
-      //   // puthex(binaryBufferOverflowIndex);
-      //   for ( uint16_t j = 0; j <= binaryBufferOverflowIndex; j++ )
-      //   {
-      //     // Restore the data to the current buffer
-      //     binaryBuffer[j] = binaryBufferOverflow[j];
-      //     // Delete element from overflow
-      //     binaryBufferOverflow[j] = '\0';
-      //     // Increment counter
-      //     binaryBufferIndex++;
-      //   }
-      //   // Reset index
-      //   binaryBufferOverflowIndex = 0;
-      // }
-
-      // for (i = 12; i < TFTP_PACKET_MAX_SIZE; i++)
-      // {
-      //   if (buffer[i] == '\0') {continue;}
-      //   putch(buffer[i]);
-      // }
-      // putch('$');
       // Cycle through the data in the buffer
       for (i = 12; i < TFTP_PACKET_MAX_SIZE; i++)
       {
-        // putch(buffer[i]);
-        // putch(buffer[i+1]);
-
-        // putch(' ');
 
         // Current char to process
         uint8_t curChar;
@@ -399,7 +329,6 @@ process_data:
         // Check for any char left over from last buffer
         if ( overflowBuffer[0] != '\0' )
         {
-          // putch('!');
           // Process left over char
           curChar = overflowBuffer[0];
           // Reset overflow
@@ -408,7 +337,6 @@ process_data:
           // Check for a second overflow char
           if ( overflowBuffer[1] != '\0' )
           {
-            // putch('~');
             // Process left over char
             nextChar = overflowBuffer[1];
             // Reset overflow
@@ -438,7 +366,6 @@ process_data:
         }
 
 
-        // putch(curChar);
         // Look for a ':'
         if ( curChar == ':' )
         {
@@ -463,8 +390,6 @@ process_data:
             {
               // Get size of line
               hexSize = hexStringToUint(hexSizeChars, 2);
-              // putch(hexSize);
-              // putch('\n');
 
               // Reset char and index buffers
               hexSizeChars[0] = '\0';
@@ -473,37 +398,13 @@ process_data:
             }
             // Get the current char
             hexAddressChars[hexAddressIndex++] = curChar;
-            // putch(curChar);
           // Reset buffers when necessary
           }else if ( hexAddressIndex >= 4 )
           {
-            //putint(hexStringToUint(hexAddressChars, 4));
-            // putch(hexStringToUint(hexAddressChars, 4));
-            // putch(hexAddressChars[0]);
-            // putch(hexAddressChars[1]);
-            // putch(hexAddressChars[2]);
-            // putch(hexAddressChars[3]);     
             // Get memory location
             hexAddress = hexStringToUint(hexAddressChars, 4);
 
-
-            // for (int i = 15; i >= 0; i--) {
-            //   // Check each bit starting from the most significant bit (MSB)
-            //   uint16_t mask = 1 << i;
-            //   if (hexAddress & mask) {
-            //     putch('1');
-            //   } else {
-            //     putch('0');
-            //   }
-            //   if (i % 4 == 0) { // Optional: format output to group bits for readability
-            //     putch(' ');
-            //   }
-            // }
-
-            // putch('\n');
-
-
-            // putch('\n');
+            // Reset buffer
             hexAddressChars[0] = '\0';
             hexAddressChars[1] = '\0';
             hexAddressChars[2] = '\0';
@@ -521,150 +422,34 @@ process_data:
 
         }else if ( 1 == areWaiting && waitIndex >= HEX_HEADER_SIZE )
         {
-          // // Check for record type (00 is Data, 01 is end of file)
-          // if ( recordType == '1' )
-          // {
-
-          //   // putch('&');
-          //   binaryBufferIndex = 0;
-          //   lastWrite = 1;
-          //   writeData = 1;
-          //   // // We have reached the end of the file
-          //   // break;
-          // }else
-          // {
-
-          // }
           // Increment i a second time, to process chars by 2's
           i++;
 
-          // // Reset index
-          // waitIndex = 0;
           // Check to make sure there is data to be read, and that we haven't reached the end of the file
           if ( isHexChar(curChar) && isHexChar(nextChar) && isHexChar(thirdChar) && i < TFTP_PACKET_MAX_SIZE-1 )
           {
             // Check to make sure this isn't the checksum, and that we haven't already gathered all the data we need
             if ( thirdChar != '\r' && binaryBufferIndex < hexSize && recordType != '1' )
             {
-              // putch('#');
-              // // Convert the current hex char pair to binary
+              // Convert the current hex char pair to binary
               char hexString[] = {curChar, nextChar};
-              // uint8_t binaryVal = strtol(hexString, NULL, 16);
-
-
-              // putch(curChar);
-              // putch(nextChar);
-              // putch('\n');
-
-              // if ( hexAddress == 0x5FEA )
-              // {
-              //   putch(curChar);
-              //   putch(nextChar);
-              //   // putch('\n');
-              // }else if ( hexAddress == 0x5FFA )
-              // {
-              //   putch(curChar);
-              //   putch(nextChar);
-              //   // putch('\n');
-              // }else if ( hexAddress == 0x600A )
-              // {
-              //   putch(curChar);
-              //   putch(nextChar);
-              //   // putch('\n');
-              // }else if ( hexAddress == 0x601A )
-              // {
-              //   putch(curChar);
-              //   putch(nextChar);
-              //   // putch('\n');
-              // }
-
-
+             
+              // Get value from chars
               uint8_t binaryVal = hexStringToUint(hexString, 2);
 
-              // putch(binaryVal);
-            
-              // uint8_t binaryVal = 2;
-
-              // Check to see if the buffer has all the data we are expecting from this line
-              // if ( writeData != 1 )
-              // if ( binaryBufferIndex < hexSize )
-              // {
               // Append it to the binary array
               binaryBuffer[binaryBufferIndex++] = binaryVal;
-              // putch(binaryBuffer[binaryBufferIndex-1]);
-              
-              // }else
-              // {
-              //   putch('~');
-              //   putch('~');
-              //   putch('~');
-
-              //   // // Otherwise, add it to the overflow buffer
-              //   // binaryBufferOverflow[binaryBufferOverflowIndex++];
-              // }
-
-              // puthex(binaryVal);
-              // putch(binaryVal);
-              // putch(' ');
-
-
-              // // Check to see if the binary buffer is full
-              // if ( binaryBufferIndex >= BINARY_BUFFER_SIZE || 1 == lastWrite )
-              // {
-              //   // putch('@');
-              //   // Reset index
-              //   binaryBufferIndex = 0;
-              //   // Set write data flag
-              //   writeData = 1;
-              // }
 
             // If it is, move the index to the next ':'
             }else
             {
-              // putch('#');
-              // putch('\n');
-
-              // putch('!');
-              // putch('!');
-              // putch('!');
-        //   //     ////// WRITE DATA HERE ///////////
-              // putch('\n');
-
-              // Valid Data Packet -> reset timer
-              resetTick();
-
-
               // Set packet length to size of hex line
               packetLength = hexSize;
 
-              // // packetLength = tftpDataLen - (TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE);
-              // lastPacket = tftpBlock;
-
-              // // Set the return code before packetLength gets rounded up
-              // if (packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
-              // else returnCode = ACK;
-
-              // putch('$');
-              // putch('$');
-              // putch('$');
-              // putch('$');
-
               // Get address where to write current line
               writeAddr = hexAddress;
-              // putch(writeAddr);
-              // // Reset hex address
-              // hexAddress = '\0';
 
-        // #if defined(RAMPZ)
-        //       // putch('N');
-        //       // writeAddr = (((address_t)((tftpBlock - 1)/0x80) << 16) | ((address_t)((tftpBlock - 1)%0x80) << 9));
-        //       writeAddr = (((address_t)((fillCount)/0x80) << 16) | ((address_t)((fillCount)%0x80) << 9));
-        // #else
-        //       // putch('Y');
-        //       // writeAddr = (address_t)((address_t)(tftpBlock - 1) << 9); // Flash write address for this block
-        //       writeAddr = (address_t)((address_t)(fillCount) << 9); // Flash write address for this block
-        // #endif
-              // puthex(writeAddr/1000);
+              
               if((writeAddr + packetLength) > MAX_ADDR)  {
 
 
@@ -676,23 +461,10 @@ process_data:
 
                 returnCode = ERROR_FULL;
               } else {
-                // if ( lastWrite == 0 )
-                // {
-                //   putch('*');
-                // }else{
-                //   putch('=');
-                // }
 
                 // uint8_t* pageBase = buffer + (UDP_HEADER_SIZE + TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE); // Start of block data
                 uint8_t* pageBase = binaryBuffer; // Start of block data
 
-
-                // // Set the return code before packetLength gets rounded up
-                // if(packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
-                // else returnCode = ACK;
-
-                // // Round up packet length to a full flash sector size
-                // while(packetLength % SPM_PAGESIZE) packetLength++;
 
                 if(writeAddr == 0) {
                   // First sector - validate
@@ -718,42 +490,34 @@ process_data:
 
 
 
-                // Flash packets
-                // for(offset = 0; offset < packetLength;) {
+                
                 do {
                   
-                  // putch(pageBase[index]);
-                  // putch(pageBase[index+1]);
                   
                   if ( recordType != '1' )
                   {
                     writeValue = (pageBase[index]) | (pageBase[index + 1] << 8);
-                    // writeValue = 3;
                     boot_page_fill(writeAddr + index, writeValue);
-                    // putch(writeValue);
 
                     offset+=2;
                     index+=2;
 
                     // Only write the page if it is full, or we are done writing all data
                     if( offset % SPM_PAGESIZE == 0 ) {
-                      // putch('!');
                       boot_page_erase(writeAddr + index - SPM_PAGESIZE);
                       boot_spm_busy_wait();
                       boot_page_write(writeAddr + index - SPM_PAGESIZE);
                       boot_spm_busy_wait();
-          // #if defined(RWWSRE)
+          #if defined(RWWSRE)
                       // Reenable read access to flash
                       boot_rww_enable();
                       
-                      // putch('\n');
-
-                      // Print out what we just wrote
-                      for (int m = writeAddr+index-SPM_PAGESIZE; m < writeAddr+index; m++)
-                      {
-                        putch(pgm_read_byte_near(m));
-                      }
-          // #endif
+                      // // Print out what we just wrote
+                      // for (int m = writeAddr+index-SPM_PAGESIZE; m < writeAddr+index; m++)
+                      // {
+                      //   putch(pgm_read_byte_near(m));
+                      // }
+          #endif
                     }
                   }else
                   {
@@ -765,48 +529,38 @@ process_data:
 
                 if ( recordType == '1' )
                 {
-                    putch('!');
-                    putch('!');
-                    putch('!');
-                    putch('!');
                     // Round up to the next page
                     while(offset % SPM_PAGESIZE)
                     {
+                      // Fill the rest of the last page with null chars
                       writeValue = '\0';
-                      // writeValue = 3;
                       boot_page_fill(prevAddress + prevIndex, writeValue);
-                      // putch(writeValue);
 
                       offset+=2;
                       prevIndex+=2;
                     }
 
-
+                    // Write the last page
                     boot_page_erase(prevAddress + prevIndex - SPM_PAGESIZE);
                     boot_spm_busy_wait();
                     boot_page_write(prevAddress + prevIndex - SPM_PAGESIZE);
                     boot_spm_busy_wait();
-        // #if defined(RWWSRE)
+        #if defined(RWWSRE)
                     // Reenable read access to flash
                     boot_rww_enable();
-                    // Print out what we just wrote
-                    for (int m = prevAddress+prevIndex-SPM_PAGESIZE; m < prevAddress+prevIndex; m++)
-                    {
-                      putch(pgm_read_byte_near(m));
-                    }
+                    // // Print out what we just wrote
+                    // for (int m = prevAddress+prevIndex-SPM_PAGESIZE; m < prevAddress+prevIndex; m++)
+                    // {
+                    //   putch(pgm_read_byte_near(m));
+                    // }
+        #endif
+
+                    break;
                 }
 
-
-
-
+                // Store last address and index
                 prevAddress = writeAddr;
                 prevIndex = index;
-
-                if ( recordType == '1' )
-                {
-                  break;
-                }
-
 
                 // Reset binary buffer
                 for (uint8_t k = 0; k < BINARY_BUFFER_SIZE; k++)
@@ -817,12 +571,7 @@ process_data:
                 binaryBufferIndex = 0;
 
               }
-              //////////////////////////////////
 
-
-
-
-              // putch('\n');
               i+=2;
               // Reset index
               waitIndex = 0;
@@ -833,7 +582,6 @@ process_data:
           // Otherwise, store the current char(s) for the next time around
           }else
           {
-            // putch('!');
             if ( isHexChar(curChar) )
             {
               overflowBuffer[0] = curChar;
@@ -858,154 +606,17 @@ process_data:
 
       DBG_TFTP(tracePGMlnTftp(mDebugTftp_OPDATA);)
 
-
-      // packetLength = 512;
-      //packetLength = tftpDataLen - (TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE);
       lastPacket = tftpBlock;
 
+      if(returnCode == FINAL_ACK) {
+        // Flash is complete
+        // Hand over to application
+        // offset = 0;
+        DBG_TFTP(tracePGMlnTftp(mDebugTftp_DONE);)
 
-
-  //     if ( 1 == writeData )
-  //     {
-  //       // putch('$');
-  //       // putch('$');
-  //       // putch('$');
-  //       // putch('$');
-
-  // #if defined(RAMPZ)
-  //       // putch('N');
-  //       // writeAddr = (((address_t)((tftpBlock - 1)/0x80) << 16) | ((address_t)((tftpBlock - 1)%0x80) << 9));
-  //       writeAddr = (((address_t)((fillCount)/0x80) << 16) | ((address_t)((fillCount)%0x80) << 9));
-  // #else
-  //       // putch('Y');
-  //       // writeAddr = (address_t)((address_t)(tftpBlock - 1) << 9); // Flash write address for this block
-  //       writeAddr = (address_t)((address_t)(fillCount) << 9); // Flash write address for this block
-  // #endif
-  //       // puthex(writeAddr/1000);
-  //       if((writeAddr + BINARY_BUFFER_SIZE) > MAX_ADDR && 0 == lastWrite)  {
-
-
-
-  //         // Flash is full - abort with an error before a bootloader overwrite occurs
-  //         // Application is now corrupt, so do not hand over.
-
-  //         DBG_TFTP(tracePGMlnTftp(mDebugTftp_FULL);)
-
-  //         returnCode = ERROR_FULL;
-  //       } else {
-  //         // if ( lastWrite == 0 )
-  //         // {
-  //         //   putch('*');
-  //         // }else{
-  //         //   putch('=');
-  //         // }
-
-  //         DBG_TFTP(
-  //           tracePGMlnTftp(mDebugTftp_WRADDR);
-  //           traceadd(writeAddr);
-  //         )
-
-  //         // uint8_t* pageBase = buffer + (UDP_HEADER_SIZE + TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE); // Start of block data
-  //         uint8_t* pageBase = binaryBuffer; // Start of block data
-  //         uint16_t offset = 0; // Block offset
-
-
-  //         // // Set the return code before packetLength gets rounded up
-  //         // if(packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
-  //         // else returnCode = ACK;
-
-  //         // Round up packet length to a full flash sector size
-  //         while(packetLength % SPM_PAGESIZE) packetLength++;
-
-  //         DBG_TFTP(
-  //           tracePGMlnTftp(mDebugTftp_PLEN);
-  //           tracenum(packetLength);
-  //         )
-
-  //         if(writeAddr == 0) {
-  //           // First sector - validate
-  //           if(!validImage(pageBase)) {
-
-  // #if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__)
-  //             /* FIXME: Validity checks. Small programms (under 512 bytes?) don't
-  //             * have the the JMP sections and that is why app.bin was failing.
-  //             * When flashing big binaries is fixed, uncomment the break below.*/
-  //             returnCode = INVALID_IMAGE;
-  //             break;
-  // #endif
-  //           }
-  //         }
-
-  //         // Flash packets
-  //         uint16_t writeValue;
-  //         for(offset = 0; offset < BINARY_BUFFER_SIZE;) {
-  //           // putch(pageBase[offset]);
-  //           // putch(pageBase[offset+1]);
-  //           writeValue = (pageBase[offset]) | (pageBase[offset + 1] << 8);
-  //           // putch(writeValue);
-  //           boot_page_fill(writeAddr + offset, writeValue);
-
-  //           DBG_TFTP_EX(
-  //             if((offset == 0) || ((offset == (BINARY_BUFFER_SIZE - 2)))) {
-  //               tracePGMlnTftp(mDebugTftp_WRITE);
-  //               tracenum(writeValue);
-  //               tracePGM(mDebugTftp_OFFSET);
-  //               tracenum(writeAddr + offset);
-  //             }
-  //           )
-
-  //           offset += 2;
-
-  //           if(offset % SPM_PAGESIZE == 0) {
-  //             boot_page_erase(writeAddr + offset - SPM_PAGESIZE);
-  //             boot_spm_busy_wait();
-  //             boot_page_write(writeAddr + offset - SPM_PAGESIZE);
-  //             boot_spm_busy_wait();
-  // #if defined(RWWSRE)
-  //             // Reenable read access to flash
-  //             boot_rww_enable();
-  // #endif
-  //           }
-  //         }
-
-  //         // We've written 1 set of 512 bytes of data, so increment the counter
-  //         fillCount++;
-
-
-        if(returnCode == FINAL_ACK) {
-
-          // // Check to make sure there's no data left to write
-          // if ( binaryBufferOverflowIndex > 0 )
-          // {
-          //   // Reset binary buffer
-          //   for (uint16_t k = 0; k < BINARY_BUFFER_SIZE; k++)
-          //   {
-          //     binaryBuffer[k] = '\0';
-          //   }
-          //   // Reset flag
-          //   writeData = 0;
-          //   // putch('%');
-          //   // Get the last of the data before exiting
-          //   goto process_data;
-          //   // processPacket();
-          // }
-          // Flash is complete
-          // Hand over to application
-          offset = 0;
-          DBG_TFTP(tracePGMlnTftp(mDebugTftp_DONE);)
-
-          // Flag the image as valid since we received the last packet
-          eeprom_write_byte(EEPROM_IMG_STAT, EEPROM_IMG_OK_VALUE);
-        }
-
-
-        // // Reset flag
-        // writeData = 0;
-
-      // }else
-      // {
-      //   // putch('!');
-      // }
+        // Flag the image as valid since we received the last packet
+        eeprom_write_byte(EEPROM_IMG_STAT, EEPROM_IMG_OK_VALUE);
+      }
 
 			break;
 
