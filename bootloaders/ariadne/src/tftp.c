@@ -753,20 +753,34 @@ process_data:
                       {
                         putch(pgm_read_byte_near(m));
                       }
-
-
-
-
           // #endif
                     }
                   }else
                   {
+                    break;
+                  }
+                } while( index < packetLength );
+
+
+
+                if ( recordType == '1' )
+                {
+                    putch('!');
+                    putch('!');
+                    putch('!');
+                    putch('!');
                     // Round up to the next page
-                    while(prevIndex % SPM_PAGESIZE) prevIndex++;
-                    putch('!');
-                    putch('!');
-                    putch('!');
-                    putch('!');
+                    while(offset % SPM_PAGESIZE)
+                    {
+                      writeValue = '\0';
+                      // writeValue = 3;
+                      boot_page_fill(prevAddress + prevIndex, writeValue);
+                      // putch(writeValue);
+
+                      offset+=2;
+                      prevIndex+=2;
+                    }
+
 
                     boot_page_erase(prevAddress + prevIndex - SPM_PAGESIZE);
                     boot_spm_busy_wait();
@@ -780,9 +794,10 @@ process_data:
                     {
                       putch(pgm_read_byte_near(m));
                     }
-                    break;
-                  }
-                } while( index < packetLength );
+                }
+
+
+
 
                 prevAddress = writeAddr;
                 prevIndex = index;
