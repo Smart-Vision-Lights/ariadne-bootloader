@@ -140,6 +140,10 @@ uint8_t areWaiting = 0;
 uint8_t writeData = 0;
 // Record type of hex line
 uint8_t recordType = '\0';
+// Buffer to hold the current hex line in its complete char form
+#define HEX_LINE_BUFFER_SIZE 64
+uint8_t hexLine[HEX_LINE_BUFFER_SIZE] = {'0'};
+uint8_t hexLineIndex = 0;
 // Buffer to hold the address chars of the current hex line
 char hexAddressChars[4] = {'\0','\0','\0','\0'};
 uint8_t hexAddressIndex = 0;
@@ -151,6 +155,7 @@ uint16_t hexSize = 0;
 uint16_t hexAddress = 0;
 // Last write reached (it will probably be smaller than 512 bytes)
 uint8_t lastWrite = 0;
+uint8_t doneLastWrite = 0;
 uint16_t offset = 0; // Block offset
 
 
@@ -248,6 +253,8 @@ static uint8_t processPacket(void)
 	DBG_TFTP(tracePGMlnTftp(mDebugTftp_RADDR);)
 
 
+
+
 	// Parse packet
 	uint16_t tftpDataLen = (buffer[6] << 8) + buffer[7];
 	uint16_t tftpOpcode  = (buffer[8] << 8) + buffer[9];
@@ -275,10 +282,6 @@ static uint8_t processPacket(void)
 	uint8_t returnCode = ERROR_UNKNOWN;
 	uint16_t packetLength;
 
-  if ( 1 == lastWrite )
-  {
-    tftpOpcode = TFTP_OPCODE_DATA;
-  }
 
 	switch(tftpOpcode) {
 
@@ -315,6 +318,8 @@ static uint8_t processPacket(void)
 			break;
 
 		case TFTP_OPCODE_DATA:
+
+
       // Cycle through the data in the buffer
       for (i = 12; i < TFTP_PACKET_MAX_SIZE; i++)
       {
@@ -376,7 +381,10 @@ static uint8_t processPacket(void)
         // Increment waiting counter
         if ( 1 == areWaiting && waitIndex < HEX_HEADER_SIZE )
         {
-          
+          if ( 1 == lastWrite )
+          {
+            hexLine[hexLineIndex++] = curChar;
+          }
           // If the current char is one of the 2 size chars
           if ( waitIndex >= HEX_HEADER_SIZE - 8 && waitIndex <= HEX_HEADER_SIZE - 7 )
           {
@@ -431,18 +439,31 @@ static uint8_t processPacket(void)
             // Check to make sure this isn't the checksum, and that we haven't already gathered all the data we need
             if ( thirdChar != '\r' && binaryBufferIndex < hexSize && recordType != '1' )
             {
-              // Convert the current hex char pair to binary
-              char hexString[] = {curChar, nextChar};
-             
-              // Get value from chars
-              uint8_t binaryVal = hexStringToUint(hexString, 2);
 
-              // Append it to the binary array
-              binaryBuffer[binaryBufferIndex++] = binaryVal;
+                // Add chars to hex line buffer
+                hexLine[hexLineIndex++] = curChar;
+                hexLine[hexLineIndex++] = nextChar;
+
+                // Convert the current hex char pair to binary
+                char hexString[] = {curChar, nextChar};
+
+                // Get value from chars
+                uint8_t binaryVal = hexStringToUint(hexString, 2);
+
+                // Append it to the binary array
+                binaryBuffer[binaryBufferIndex++] = binaryVal;
 
             // If it is, move the index to the next ':'
             }else
             {
+              if ( 1 == lastWrite )
+              {
+                // Add chars to hex line buffer
+                // hexLine[hexLineIndex++] = curChar;
+                // hexLine[hexLineIndex++] = nextChar;
+                // hexLine[hexLineIndex++] = thirdChar;
+                // hexLine[hexLineIndex++] = '\n';
+              }
               // Set packet length to size of hex line
               packetLength = hexSize;
 
@@ -450,47 +471,110 @@ static uint8_t processPacket(void)
               writeAddr = hexAddress;
 
               
-              if((writeAddr + packetLength) > MAX_ADDR)  {
+
+              uint16_t writeValue;
+              static uint16_t prevAddress;
+              static uint8_t prevIndex;
+              uint8_t index = 0;
+
+
+              // Check to see if we've filled the Atmel's memory yet
+              if( (writeAddr + packetLength) > MAX_ADDR )  {
+
+                // // Flash is full - abort with an error before a bootloader overwrite occurs
+                // // Application is now corrupt, so do not hand over.
+
+                // DBG_TFTP(tracePGMlnTftp(mDebugTftp_FULL);)
+
+                // returnCode = ERROR_FULL;
+
+
+                // Finish writing the last page if we haven't already
+                if ( 0 == lastWrite )
+                {
+
+                  // Round up to the next page
+                  while(offset % SPM_PAGESIZE)
+                  {
+                    // Fill the rest of the last page with null chars
+                    writeValue = '\0';
+                    boot_page_fill(prevAddress + prevIndex, writeValue);
+
+                    offset+=2;
+                    prevIndex+=2;
+                  }
+
+                  // Write the last page
+                  boot_page_erase(prevAddress + prevIndex - SPM_PAGESIZE);
+                  boot_spm_busy_wait();
+                  boot_page_write(prevAddress + prevIndex - SPM_PAGESIZE);
+                  boot_spm_busy_wait();
+      #if defined(RWWSRE)
+                  // Reenable read access to flash
+                  boot_rww_enable();
+                  // // Print out what we just wrote
+                  // for (int m = prevAddress+prevIndex-SPM_PAGESIZE; m < prevAddress+prevIndex; m++)
+                  // {
+                  //   putch(pgm_read_byte_near(m));
+                  // }
+      #endif
+
+                  lastWrite = 1;
+                  // doneLastWrite = 1;
+                  // putch('@');
+                }
+                // // Otherwise, just pass the hex lines to the serial port
+                // }else if ( 1 == lastWrite )
+                // {
+                  // // Add label ahead of data
+                  // putch('H');
+                  // putch('E');
+                  // putch('X');
+                  // putch(',');
+                  // // Cycle through the entire packet
+                  // for ( uint8_t n = 0; n < hexLineIndex; n++ )
+                  // {
+                  //   // Send that data on the serial bus
+                  //   putch(hexLine[n]);
+                  // }
+
+                  // // Reset hex line
+                  // for ( uint8_t n = 0; n < HEX_LINE_BUFFER_SIZE; n++ )
+                  // {
+                  //   hexLine[n] = '\0';
+                  // }
+                  // // Reset hex line index
+                  // hexLineIndex = 0;
+                }
+
+                // Either the Atmel is full, or else the memory address is outside our range,
+                // so move on to just printing out the hex data on the serial bus
 
 
 
-                // Flash is full - abort with an error before a bootloader overwrite occurs
-                // Application is now corrupt, so do not hand over.
+                // putch('!');
 
-                DBG_TFTP(tracePGMlnTftp(mDebugTftp_FULL);)
 
-                returnCode = ERROR_FULL;
               } else {
 
                 // uint8_t* pageBase = buffer + (UDP_HEADER_SIZE + TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE); // Start of block data
                 uint8_t* pageBase = binaryBuffer; // Start of block data
 
 
-                if(writeAddr == 0) {
-                  // First sector - validate
-        //           if(!validImage(pageBase)) {
+        //         if(writeAddr == 0) {
+        //           // First sector - validate
+        // //           if(!validImage(pageBase)) {
 
-        // #if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__)
-        //             /* FIXME: Validity checks. Small programms (under 512 bytes?) don't
-        //             * have the the JMP sections and that is why app.bin was failing.
-        //             * When flashing big binaries is fixed, uncomment the break below.*/
-        //             returnCode = INVALID_IMAGE;
-        //             break;
-        // #endif
-        //           }
-                }
-
-
-
-                uint16_t writeValue;
-                static uint16_t prevAddress;
-                static uint8_t prevIndex;
-                uint8_t index = 0;
-
-
-
-
-                
+        // // #if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__)
+        // //             /* FIXME: Validity checks. Small programms (under 512 bytes?) don't
+        // //             * have the the JMP sections and that is why app.bin was failing.
+        // //             * When flashing big binaries is fixed, uncomment the break below.*/
+        // //             returnCode = INVALID_IMAGE;
+        // //             break;
+        // // #endif
+        // //           }
+        //         }
+        
                 do {
                   
                   
@@ -569,8 +653,9 @@ static uint8_t processPacket(void)
                 }
 
                 binaryBufferIndex = 0;
-
               }
+
+
 
               i+=2;
               // Reset index
@@ -578,6 +663,7 @@ static uint8_t processPacket(void)
               areWaiting = 0;
               // Reset record type
               recordType = '\0';
+
             }
           // Otherwise, store the current char(s) for the next time around
           }else
@@ -597,6 +683,7 @@ static uint8_t processPacket(void)
         }
       }
 
+
       // Valid Data Packet -> reset timer
       resetTick();
 
@@ -612,6 +699,8 @@ static uint8_t processPacket(void)
         // Flash is complete
         // Hand over to application
         // offset = 0;
+
+        // lastWrite = 0;
         DBG_TFTP(tracePGMlnTftp(mDebugTftp_DONE);)
 
         // Flag the image as valid since we received the last packet
