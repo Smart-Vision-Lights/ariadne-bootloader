@@ -52,6 +52,11 @@ void resetTick(void)
 	wdt_reset(); //Added so can use wdt
 }
 
+uint16_t getTick(void)
+{
+  return tick;
+}
+
 uint8_t timedOut(void)
 {
 	// Never timeout if there is no code in Flash

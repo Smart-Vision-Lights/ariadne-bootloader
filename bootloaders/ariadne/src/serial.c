@@ -79,11 +79,20 @@ void putint(uint8_t c)
 }
 
 
+#define SERIAL_READ_TIMEOUT 1000000
+
 uint8_t getch(void)
 {
 	//uint8_t ch;
+  uint32_t time = 0;
 
-	while(!(UART_STATUS_REG & _BV(UART_RECEIVE_COMPLETE)));
+	while(!(UART_STATUS_REG & _BV(UART_RECEIVE_COMPLETE)) && time++ < SERIAL_READ_TIMEOUT);
+
+  if ( time >= SERIAL_READ_TIMEOUT )
+  {
+    return '\0';
+  }
+
 	if(!(UART_STATUS_REG & _BV(UART_FRAME_ERROR))) {
 		/*
 		 * A Framing Error indicates (probably) that something is talking

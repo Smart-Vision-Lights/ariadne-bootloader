@@ -41,6 +41,7 @@
 
 void updateLed(void);
 void resetTick(void);
+uint16_t getTick(void);
 uint8_t timedOut(void);
 
 #endif

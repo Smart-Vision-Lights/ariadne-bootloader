@@ -47,6 +47,10 @@ uint16_t tftpTransferPort;
 // How big of a buffer to fill with binary data from the .hex file
 #define BINARY_BUFFER_SIZE 16
 
+// How long to wait for an ack from the serial bus
+#define SERIAL_BUS_FLASH_TIMEOUT 10
+
+
 static void sockInit(uint16_t port)
 {
 	DBG_TFTP(
@@ -93,18 +97,20 @@ uint8_t hexCharToInt(char c) {
     }
 }
 
-uint16_t hexStringToUint(const char *hexString, uint8_t size) {
+uint32_t hexStringToUint(const char *hexString, uint8_t size) {
     
-    uint8_t nibbles[4] = {hexCharToInt(hexString[0]), hexCharToInt(hexString[1]), hexCharToInt(hexString[2]), hexCharToInt(hexString[3])}; 
+    uint8_t nibbles[8] = {hexCharToInt(hexString[0]), hexCharToInt(hexString[1]), hexCharToInt(hexString[2]), hexCharToInt(hexString[3]),
+                            hexCharToInt(hexString[4], hexCharToInt(hexString[5]), hexCharToInt(hexString[6]), hexCharToInt(hexString[7]))}; 
     // uint8_t highNibble = hexCharToInt(hexString[0]);
     // uint8_t lowNibble = hexCharToInt(hexString[1]);
     
     if ( size == 2 )
     {
       return (nibbles[0] << 4) | nibbles[1];
-    }else if (size == 4)
+    }else if (size == 8)
     {
-      return (nibbles[0] << 12) | (nibbles[1] << 8) | (nibbles[2] << 4) | (nibbles[3]);
+      return (nibbles[0] << 28) | (nibbles[1] << 24) | (nibbles[2] << 20) | (nibbles[3] << 16) |
+               (nibbles[4] << 12) | (nibbles[5] << 8) | (nibbles[6] << 4) | (nibbles[7]);
     }
 
     return 0;
@@ -145,14 +151,17 @@ uint8_t recordType = '\0';
 uint8_t hexLine[HEX_LINE_BUFFER_SIZE] = {'0'};
 uint8_t hexLineIndex = 0;
 // Buffer to hold the address chars of the current hex line
-char hexAddressChars[4] = {'\0','\0','\0','\0'};
-uint8_t hexAddressIndex = 0;
+char hexAddressChars[8] = {'0','0','0','0','\0','\0','\0','\0'};
+// Used to extend the address if necessary
+char hexAddressExtensionChars[4] = {'\0','\0','\0','\0'};
+
+uint8_t hexAddressIndex = 4;
 // How big the current line of data is
 char hexSizeChars[2] = {'\0', '\0'};
 uint8_t hexSizeCharsIndex = 0;
 uint16_t hexSize = 0;
 // Actual location in memory to write to
-uint16_t hexAddress = 0;
+uint32_t hexAddress = 0;
 // Last write reached (it will probably be smaller than 512 bytes)
 uint8_t lastWrite = 0;
 uint8_t doneLastWrite = 0;
@@ -392,7 +401,7 @@ static uint8_t processPacket(void)
             hexSizeChars[hexSizeCharsIndex++] = curChar;
 
           // If the current char is one of the 4 address chars
-          }else if ( waitIndex >= HEX_HEADER_SIZE - 6 && waitIndex <= HEX_HEADER_SIZE - 3 && hexAddressIndex < 4 )
+          }else if ( waitIndex >= HEX_HEADER_SIZE - 6 && waitIndex <= HEX_HEADER_SIZE - 3 && hexAddressIndex < 8 )
           {
             if ( hexSizeChars[0] != '\0' )
             {
@@ -407,16 +416,32 @@ static uint8_t processPacket(void)
             // Get the current char
             hexAddressChars[hexAddressIndex++] = curChar;
           // Reset buffers when necessary
-          }else if ( hexAddressIndex >= 4 )
+          }else if ( hexAddressIndex >= 8 )
           {
-            // Get memory location
-            hexAddress = hexStringToUint(hexAddressChars, 4);
+
           }
           // If the current char is the last one of the record type
           if ( waitIndex == HEX_HEADER_SIZE-1 )
           {
             // Get it
             recordType = curChar;
+            // Add memory extension if we need to
+            if ( recordType == '4' )
+            {
+              hexAddressChars[0] = hexAddressChars[4];
+              hexAddressChars[1] = hexAddressChars[5];
+              hexAddressChars[2] = hexAddressChars[6];
+              hexAddressChars[3] = hexAddressChars[7];
+              hexAddressChars[4] = '\0';
+              hexAddressChars[5] = '\0';
+              hexAddressChars[6] = '\0';
+              hexAddressChars[7] = '\0';
+            }else
+            {
+              // Get memory location
+              hexAddress = hexStringToUint(hexAddressChars, 8);
+            }
+
           }
           // Increment wait index
           waitIndex++;
@@ -430,7 +455,7 @@ static uint8_t processPacket(void)
           if ( isHexChar(curChar) && isHexChar(nextChar) && isHexChar(thirdChar) && i < TFTP_PACKET_MAX_SIZE-1 )
           {
             // Check to make sure this isn't the checksum, and that we haven't already gathered all the data we need
-            if ( thirdChar != '\r' && binaryBufferIndex < hexSize && recordType != '1' )
+            if ( thirdChar != '\r' && binaryBufferIndex < hexSize && recordType == '0' )
             {
 
                 // // Add chars to hex line buffer
@@ -449,204 +474,46 @@ static uint8_t processPacket(void)
             // If it is, move the index to the next ':'
             }else
             {
-              // if ( 1 == lastWrite )
-              // {
-              //   // Add chars to hex line buffer
-              //   // hexLine[hexLineIndex++] = curChar;
-              //   // hexLine[hexLineIndex++] = nextChar;
-              //   // hexLine[hexLineIndex++] = thirdChar;
-              //   // hexLine[hexLineIndex++] = '\n';
-              // }
-              // Set packet length to size of hex line
-              packetLength = hexSize;
-
-              // Get address where to write current line
-              writeAddr = hexAddress;
-
-              
-
-              uint16_t writeValue;
-              static uint16_t prevAddress;
-              static uint8_t prevIndex;
-              uint8_t index = 0;
-
-
-              // Check to see if we've filled the Atmel's memory yet
-              if( (writeAddr + packetLength) > MAX_ADDR || 1 == lastWrite )  {
-
-                // // Flash is full - abort with an error before a bootloader overwrite occurs
-                // // Application is now corrupt, so do not hand over.
-
-                // DBG_TFTP(tracePGMlnTftp(mDebugTftp_FULL);)
-
-                // returnCode = ERROR_FULL;
-
-
-                // Finish writing the last page if we haven't already
-                if ( 0 == lastWrite )
-                {
-
-                  // Round up to the next page
-                  while(offset % SPM_PAGESIZE)
-                  {
-                    // Fill the rest of the last page with null chars
-                    writeValue = '\0';
-                    boot_page_fill(prevAddress + prevIndex, writeValue);
-
-                    offset+=2;
-                    prevIndex+=2;
-                  }
-
-                  // Write the last page
-                  boot_page_erase(prevAddress + prevIndex - SPM_PAGESIZE);
-                  boot_spm_busy_wait();
-                  boot_page_write(prevAddress + prevIndex - SPM_PAGESIZE);
-                  boot_spm_busy_wait();
-      #if defined(RWWSRE)
-                  // Reenable read access to flash
-                  boot_rww_enable();
-                  // // Print out what we just wrote
-                  // for (int m = prevAddress+prevIndex-SPM_PAGESIZE; m < prevAddress+prevIndex; m++)
-                  // {
-                  //   putch(pgm_read_byte_near(m));
-                  // }
-      #endif
-
-                  lastWrite = 1;
-                  // doneLastWrite = 1;
-                  // putch('@');
-                }
-
-                // Pass hex data to the serial port
-
-                // Add label
-                putch('H');
-                putch('E');
-                putch('X');
-                putch(',');
-                // Add hex address chars
-                putch(hexAddressChars[0]);
-                putch(hexAddressChars[1]);
-                putch(hexAddressChars[2]);
-                putch(hexAddressChars[3]);
-                putch(',');
-                // Add record type
-                putch(recordType);
-                putch(',');
-                // Add size (number of bytes in the line)
-                putch(hexSize);
-                // Cycle through the entire packet
-                for ( uint8_t n = 0; n < binaryBufferIndex; n++ )
-                {
-                  // Send that data on the serial bus
-                  putch(binaryBuffer[n]);
-                }
-                // End line with a newline
-                putch('\n');
-
-
-                if ( recordType == '1' )
-                {
-                  break;
-                }
-
-                // // Reset hex line
-                // for ( uint8_t n = 0; n < HEX_LINE_BUFFER_SIZE; n++ )
+              // Ensure this isn't an address extension
+              if ( recordType != '4' )
+              {
+                // if ( 1 == lastWrite )
                 // {
-                //   hexLine[n] = '\0';
+                //   // Add chars to hex line buffer
+                //   // hexLine[hexLineIndex++] = curChar;
+                //   // hexLine[hexLineIndex++] = nextChar;
+                //   // hexLine[hexLineIndex++] = thirdChar;
+                //   // hexLine[hexLineIndex++] = '\n';
                 // }
-                // // Reset hex line index
-                // hexLineIndex = 0;
+                // Set packet length to size of hex line
+                packetLength = hexSize;
 
-                // Either the Atmel is full, or else the memory address is outside our range,
-                // so move on to just printing out the hex data on the serial bus
+                // Get address where to write current line
+                writeAddr = hexAddress;
+
+                
+
+                uint16_t writeValue;
+                static uint16_t prevAddress;
+                static uint8_t prevIndex;
+                uint8_t index = 0;
 
 
+                // Check to see if we've filled the Atmel's memory yet
+                if( (writeAddr + packetLength) > MAX_ADDR || 1 == lastWrite )  {
 
-                // putch('!');
+                  // // Flash is full - abort with an error before a bootloader overwrite occurs
+                  // // Application is now corrupt, so do not hand over.
+
+                  // DBG_TFTP(tracePGMlnTftp(mDebugTftp_FULL);)
+
+                  // returnCode = ERROR_FULL;
 
 
-              } else {
-
-                // uint8_t* pageBase = buffer + (UDP_HEADER_SIZE + TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE); // Start of block data
-                uint8_t* pageBase = binaryBuffer; // Start of block data
-
-                                // Add label
-                putch('H');
-                putch('E');
-                putch('X');
-                putch(',');
-                // Add hex address chars
-                putch(hexAddressChars[0]);
-                putch(hexAddressChars[1]);
-                putch(hexAddressChars[2]);
-                putch(hexAddressChars[3]);
-                putch(',');
-                // Add record type
-                putch(recordType);
-                putch(',');
-                // Add size (number of bytes in the line)
-                putch(hexSize);
-                // Cycle through the entire packet
-                for ( uint8_t n = 0; n < binaryBufferIndex; n++ )
-                {
-                  // Send that data on the serial bus
-                  putch(binaryBuffer[n]);
-                }
-                // End line with a newline
-                putch('\n');
-        //         if(writeAddr == 0) {
-        //           // First sector - validate
-        // //           if(!validImage(pageBase)) {
-
-        // // #if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__)
-        // //             /* FIXME: Validity checks. Small programms (under 512 bytes?) don't
-        // //             * have the the JMP sections and that is why app.bin was failing.
-        // //             * When flashing big binaries is fixed, uncomment the break below.*/
-        // //             returnCode = INVALID_IMAGE;
-        // //             break;
-        // // #endif
-        // //           }
-        //         }
-        
-                do {
-                  
-                  
-                  if ( recordType != '1' )
+                  // Finish writing the last page if we haven't already
+                  if ( 0 == lastWrite )
                   {
-                    writeValue = (pageBase[index]) | (pageBase[index + 1] << 8);
-                    boot_page_fill(writeAddr + index, writeValue);
 
-                    offset+=2;
-                    index+=2;
-
-                    // Only write the page if it is full, or we are done writing all data
-                    if( offset % SPM_PAGESIZE == 0 ) {
-                      boot_page_erase(writeAddr + index - SPM_PAGESIZE);
-                      boot_spm_busy_wait();
-                      boot_page_write(writeAddr + index - SPM_PAGESIZE);
-                      boot_spm_busy_wait();
-          #if defined(RWWSRE)
-                      // Reenable read access to flash
-                      boot_rww_enable();
-                      
-                      // // Print out what we just wrote
-                      // for (int m = writeAddr+index-SPM_PAGESIZE; m < writeAddr+index; m++)
-                      // {
-                      //   putch(pgm_read_byte_near(m));
-                      // }
-          #endif
-                    }
-                  }else
-                  {
-                    break;
-                  }
-                } while( index < packetLength );
-
-
-
-                if ( recordType == '1' )
-                {
                     // Round up to the next page
                     while(offset % SPM_PAGESIZE)
                     {
@@ -673,20 +540,200 @@ static uint8_t processPacket(void)
                     // }
         #endif
 
-                    break;
+                    lastWrite = 1;
+                    // doneLastWrite = 1;
+                    // putch('@');
+                  }
+
+                  // Pass hex data to the serial port
+
+                  // Add label
+                  putch('H');
+                  putch('E');
+                  putch('X');
+                  putch(',');
+                  // Add hex address chars
+                  putch(hexAddressChars[4]);
+                  putch(hexAddressChars[5]);
+                  putch(hexAddressChars[6]);
+                  putch(hexAddressChars[7]);
+                  putch(',');
+                  // Add record type
+                  putch(recordType);
+                  putch(',');
+                  // Add size (number of bytes in the line)
+                  putch(hexSize);
+                  // Cycle through the entire packet
+                  for ( uint8_t n = 0; n < binaryBufferIndex; n++ )
+                  {
+                    // Send that data on the serial bus
+                    putch(binaryBuffer[n]);
+                  }
+                  // End line with a newline
+                  putch('\n');
+
+                  // Wait for an ack back on the serial bus
+                  while ( getch() != 'K' && getch() != '\0' ) {}
+
+                  // // Abort if we timed out
+                  // if ( getTick() >= SERIAL_BUS_FLASH_TIMEOUT )
+                  // {
+                  //   returnCode = ERROR_UNKNOWN;
+                  //   break;
+                  // }
+
+                  // // Break out of the loop if we've reached the end of the file
+                  // if ( recordType == '1' )
+                  // {
+                  //   break;
+                  // }
+
+                  // // Reset hex line
+                  // for ( uint8_t n = 0; n < HEX_LINE_BUFFER_SIZE; n++ )
+                  // {
+                  //   hexLine[n] = '\0';
+                  // }
+                  // // Reset hex line index
+                  // hexLineIndex = 0;
+
+                  // Either the Atmel is full, or else the memory address is outside our range,
+                  // so move on to just printing out the hex data on the serial bus
+
+
+
+                  // putch('!');
+
+
+                } else {
+
+                  // uint8_t* pageBase = buffer + (UDP_HEADER_SIZE + TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE); // Start of block data
+                  uint8_t* pageBase = binaryBuffer; // Start of block data
+
+                                  // Add label
+                  // putch('H');
+                  // putch('E');
+                  // putch('X');
+                  // putch(',');
+                  // // Add hex address chars
+                  // putch(hexAddressChars[4]);
+                  // putch(hexAddressChars[5]);
+                  // putch(hexAddressChars[6]);
+                  // putch(hexAddressChars[7]);
+                  // putch(',');
+                  // // Add record type
+                  // putch(recordType);
+                  // putch(',');
+                  // // Add size (number of bytes in the line)
+                  // putch(hexSize);
+                  // // Cycle through the entire packet
+                  // for ( uint8_t n = 0; n < binaryBufferIndex; n++ )
+                  // {
+                  //   // Send that data on the serial bus
+                  //   putch(binaryBuffer[n]);
+                  // }
+                  // // End line with a newline
+                  // putch('\n');
+
+
+
+          //         if(writeAddr == 0) {
+          //           // First sector - validate
+          // //           if(!validImage(pageBase)) {
+
+          // // #if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__)
+          // //             /* FIXME: Validity checks. Small programms (under 512 bytes?) don't
+          // //             * have the the JMP sections and that is why app.bin was failing.
+          // //             * When flashing big binaries is fixed, uncomment the break below.*/
+          // //             returnCode = INVALID_IMAGE;
+          // //             break;
+          // // #endif
+          // //           }
+          //         }
+          
+                  do {
+                    
+                    
+                    if ( recordType != '1' )
+                    {
+                      writeValue = (pageBase[index]) | (pageBase[index + 1] << 8);
+                      boot_page_fill(writeAddr + index, writeValue);
+
+                      offset+=2;
+                      index+=2;
+
+                      // Only write the page if it is full, or we are done writing all data
+                      if( offset % SPM_PAGESIZE == 0 ) {
+                        boot_page_erase(writeAddr + index - SPM_PAGESIZE);
+                        boot_spm_busy_wait();
+                        boot_page_write(writeAddr + index - SPM_PAGESIZE);
+                        boot_spm_busy_wait();
+            #if defined(RWWSRE)
+                        // Reenable read access to flash
+                        boot_rww_enable();
+                        
+                        // // Print out what we just wrote
+                        // for (int m = writeAddr+index-SPM_PAGESIZE; m < writeAddr+index; m++)
+                        // {
+                        //   putch(pgm_read_byte_near(m));
+                        // }
+            #endif
+                      }
+                    }else
+                    {
+                      break;
+                    }
+                  } while( index < packetLength );
+
+
+
+                  if ( recordType == '1' )
+                  {
+                      // Round up to the next page
+                      while(offset % SPM_PAGESIZE)
+                      {
+                        // Fill the rest of the last page with null chars
+                        writeValue = '\0';
+                        boot_page_fill(prevAddress + prevIndex, writeValue);
+
+                        offset+=2;
+                        prevIndex+=2;
+                      }
+
+                      // Write the last page
+                      boot_page_erase(prevAddress + prevIndex - SPM_PAGESIZE);
+                      boot_spm_busy_wait();
+                      boot_page_write(prevAddress + prevIndex - SPM_PAGESIZE);
+                      boot_spm_busy_wait();
+          #if defined(RWWSRE)
+                      // Reenable read access to flash
+                      boot_rww_enable();
+                      // // Print out what we just wrote
+                      // for (int m = prevAddress+prevIndex-SPM_PAGESIZE; m < prevAddress+prevIndex; m++)
+                      // {
+                      //   putch(pgm_read_byte_near(m));
+                      // }
+          #endif
+
+                      break;
+                  }
+
+
+
+
+                  // Store last address and index
+                  prevAddress = writeAddr;
+                  prevIndex = index;
+
+
                 }
 
-
-
-
-                // Store last address and index
-                prevAddress = writeAddr;
-                prevIndex = index;
-
-
+              
+              
+              // If this is an address extension, store it for all future hex addresses
+              }else
+              {
+                // hexAddressExtension = hexAddress;
               }
-
-
 
               // Reset binary buffer
               for (uint8_t k = 0; k < BINARY_BUFFER_SIZE; k++)
@@ -698,11 +745,15 @@ static uint8_t processPacket(void)
 
 
               // Reset hex address buffer
-              hexAddressChars[0] = '\0';
-              hexAddressChars[1] = '\0';
-              hexAddressChars[2] = '\0';
-              hexAddressChars[3] = '\0';
-              hexAddressIndex = 0;
+              // hexAddressChars[0] = '\0';
+              // hexAddressChars[1] = '\0';
+              // hexAddressChars[2] = '\0';
+              // hexAddressChars[3] = '\0';
+              hexAddressChars[4] = '\0';
+              hexAddressChars[5] = '\0';
+              hexAddressChars[6] = '\0';
+              hexAddressChars[7] = '\0';
+              hexAddressIndex = 4;
               
               i+=2;
               // Reset index
