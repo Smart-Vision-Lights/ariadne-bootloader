@@ -79,7 +79,8 @@ void putint(uint8_t c)
 }
 
 
-#define SERIAL_READ_TIMEOUT 1000000
+// #define SERIAL_READ_TIMEOUT 1000000
+#define SERIAL_READ_TIMEOUT 10000
 
 uint8_t getch(void)
 {

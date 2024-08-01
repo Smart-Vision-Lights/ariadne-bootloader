@@ -99,8 +99,8 @@ uint8_t hexCharToInt(char c) {
 
 uint32_t hexStringToUint(const char *hexString, uint8_t size) {
     
-    uint8_t nibbles[8] = {hexCharToInt(hexString[0]), hexCharToInt(hexString[1]), hexCharToInt(hexString[2]), hexCharToInt(hexString[3]),
-                            hexCharToInt(hexString[4], hexCharToInt(hexString[5]), hexCharToInt(hexString[6]), hexCharToInt(hexString[7]))}; 
+    uint32_t nibbles[8] = {hexCharToInt(hexString[0]), hexCharToInt(hexString[1]), hexCharToInt(hexString[2]), hexCharToInt(hexString[3]),
+                            hexCharToInt(hexString[4]), hexCharToInt(hexString[5]), hexCharToInt(hexString[6]), hexCharToInt(hexString[7])}; 
     // uint8_t highNibble = hexCharToInt(hexString[0]);
     // uint8_t lowNibble = hexCharToInt(hexString[1]);
     
@@ -154,6 +154,7 @@ uint8_t hexLineIndex = 0;
 char hexAddressChars[8] = {'0','0','0','0','\0','\0','\0','\0'};
 // Used to extend the address if necessary
 char hexAddressExtensionChars[4] = {'\0','\0','\0','\0'};
+uint8_t hexAddressExtensionIndex = 0;
 
 uint8_t hexAddressIndex = 4;
 // How big the current line of data is
@@ -425,22 +426,9 @@ static uint8_t processPacket(void)
           {
             // Get it
             recordType = curChar;
-            // Add memory extension if we need to
-            if ( recordType == '4' )
-            {
-              hexAddressChars[0] = hexAddressChars[4];
-              hexAddressChars[1] = hexAddressChars[5];
-              hexAddressChars[2] = hexAddressChars[6];
-              hexAddressChars[3] = hexAddressChars[7];
-              hexAddressChars[4] = '\0';
-              hexAddressChars[5] = '\0';
-              hexAddressChars[6] = '\0';
-              hexAddressChars[7] = '\0';
-            }else
-            {
-              // Get memory location
-              hexAddress = hexStringToUint(hexAddressChars, 8);
-            }
+
+            // Get memory location
+            hexAddress = hexStringToUint(hexAddressChars, 8);
 
           }
           // Increment wait index
@@ -471,8 +459,23 @@ static uint8_t processPacket(void)
                 // Append it to the binary array
                 binaryBuffer[binaryBufferIndex++] = binaryVal;
 
+
+            }else if ( thirdChar != '\r' && recordType == '4' )
+            {
+              // Add memory extension if we need to
+              if ( hexAddressExtensionIndex == 0 )
+              {
+                hexAddressChars[0] = curChar;
+                hexAddressChars[1] = nextChar;
+                hexAddressExtensionIndex++;
+              }else
+              {
+                hexAddressChars[2] = curChar;
+                hexAddressChars[3] = nextChar;
+              }
+
             // If it is, move the index to the next ':'
-            }else
+            }else if ( thirdChar == '\r' || binaryBufferIndex >= hexSize )
             {
               // Ensure this isn't an address extension
               if ( recordType != '4' )
@@ -553,6 +556,10 @@ static uint8_t processPacket(void)
                   putch('X');
                   putch(',');
                   // Add hex address chars
+                  putch(hexAddressChars[0]);
+                  putch(hexAddressChars[1]);
+                  putch(hexAddressChars[2]);
+                  putch(hexAddressChars[3]);
                   putch(hexAddressChars[4]);
                   putch(hexAddressChars[5]);
                   putch(hexAddressChars[6]);
