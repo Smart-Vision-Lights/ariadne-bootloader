@@ -381,10 +381,10 @@ static uint8_t processPacket(void)
         // Increment waiting counter
         if ( 1 == areWaiting && waitIndex < HEX_HEADER_SIZE )
         {
-          if ( 1 == lastWrite )
-          {
-            hexLine[hexLineIndex++] = curChar;
-          }
+          // if ( 1 == lastWrite )
+          // {
+          //   hexLine[hexLineIndex++] = curChar;
+          // }
           // If the current char is one of the 2 size chars
           if ( waitIndex >= HEX_HEADER_SIZE - 8 && waitIndex <= HEX_HEADER_SIZE - 7 )
           {
@@ -411,13 +411,6 @@ static uint8_t processPacket(void)
           {
             // Get memory location
             hexAddress = hexStringToUint(hexAddressChars, 4);
-
-            // Reset buffer
-            hexAddressChars[0] = '\0';
-            hexAddressChars[1] = '\0';
-            hexAddressChars[2] = '\0';
-            hexAddressChars[3] = '\0';
-            hexAddressIndex = 0;
           }
           // If the current char is the last one of the record type
           if ( waitIndex == HEX_HEADER_SIZE-1 )
@@ -440,9 +433,9 @@ static uint8_t processPacket(void)
             if ( thirdChar != '\r' && binaryBufferIndex < hexSize && recordType != '1' )
             {
 
-                // Add chars to hex line buffer
-                hexLine[hexLineIndex++] = curChar;
-                hexLine[hexLineIndex++] = nextChar;
+                // // Add chars to hex line buffer
+                // hexLine[hexLineIndex++] = curChar;
+                // hexLine[hexLineIndex++] = nextChar;
 
                 // Convert the current hex char pair to binary
                 char hexString[] = {curChar, nextChar};
@@ -456,14 +449,14 @@ static uint8_t processPacket(void)
             // If it is, move the index to the next ':'
             }else
             {
-              if ( 1 == lastWrite )
-              {
-                // Add chars to hex line buffer
-                // hexLine[hexLineIndex++] = curChar;
-                // hexLine[hexLineIndex++] = nextChar;
-                // hexLine[hexLineIndex++] = thirdChar;
-                // hexLine[hexLineIndex++] = '\n';
-              }
+              // if ( 1 == lastWrite )
+              // {
+              //   // Add chars to hex line buffer
+              //   // hexLine[hexLineIndex++] = curChar;
+              //   // hexLine[hexLineIndex++] = nextChar;
+              //   // hexLine[hexLineIndex++] = thirdChar;
+              //   // hexLine[hexLineIndex++] = '\n';
+              // }
               // Set packet length to size of hex line
               packetLength = hexSize;
 
@@ -479,7 +472,7 @@ static uint8_t processPacket(void)
 
 
               // Check to see if we've filled the Atmel's memory yet
-              if( (writeAddr + packetLength) > MAX_ADDR )  {
+              if( (writeAddr + packetLength) > MAX_ADDR || 1 == lastWrite )  {
 
                 // // Flash is full - abort with an error before a bootloader overwrite occurs
                 // // Application is now corrupt, so do not hand over.
@@ -523,29 +516,47 @@ static uint8_t processPacket(void)
                   // doneLastWrite = 1;
                   // putch('@');
                 }
-                // // Otherwise, just pass the hex lines to the serial port
-                // }else if ( 1 == lastWrite )
-                // {
-                  // // Add label ahead of data
-                  // putch('H');
-                  // putch('E');
-                  // putch('X');
-                  // putch(',');
-                  // // Cycle through the entire packet
-                  // for ( uint8_t n = 0; n < hexLineIndex; n++ )
-                  // {
-                  //   // Send that data on the serial bus
-                  //   putch(hexLine[n]);
-                  // }
 
-                  // // Reset hex line
-                  // for ( uint8_t n = 0; n < HEX_LINE_BUFFER_SIZE; n++ )
-                  // {
-                  //   hexLine[n] = '\0';
-                  // }
-                  // // Reset hex line index
-                  // hexLineIndex = 0;
+                // Pass hex data to the serial port
+
+                // Add label
+                putch('H');
+                putch('E');
+                putch('X');
+                putch(',');
+                // Add hex address chars
+                putch(hexAddressChars[0]);
+                putch(hexAddressChars[1]);
+                putch(hexAddressChars[2]);
+                putch(hexAddressChars[3]);
+                putch(',');
+                // Add record type
+                putch(recordType);
+                putch(',');
+                // Add size (number of bytes in the line)
+                putch(hexSize);
+                // Cycle through the entire packet
+                for ( uint8_t n = 0; n < binaryBufferIndex; n++ )
+                {
+                  // Send that data on the serial bus
+                  putch(binaryBuffer[n]);
                 }
+                // End line with a newline
+                putch('\n');
+
+
+                if ( recordType == '1' )
+                {
+                  break;
+                }
+
+                // // Reset hex line
+                // for ( uint8_t n = 0; n < HEX_LINE_BUFFER_SIZE; n++ )
+                // {
+                //   hexLine[n] = '\0';
+                // }
+                // // Reset hex line index
+                // hexLineIndex = 0;
 
                 // Either the Atmel is full, or else the memory address is outside our range,
                 // so move on to just printing out the hex data on the serial bus
@@ -560,7 +571,30 @@ static uint8_t processPacket(void)
                 // uint8_t* pageBase = buffer + (UDP_HEADER_SIZE + TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE); // Start of block data
                 uint8_t* pageBase = binaryBuffer; // Start of block data
 
-
+                                // Add label
+                putch('H');
+                putch('E');
+                putch('X');
+                putch(',');
+                // Add hex address chars
+                putch(hexAddressChars[0]);
+                putch(hexAddressChars[1]);
+                putch(hexAddressChars[2]);
+                putch(hexAddressChars[3]);
+                putch(',');
+                // Add record type
+                putch(recordType);
+                putch(',');
+                // Add size (number of bytes in the line)
+                putch(hexSize);
+                // Cycle through the entire packet
+                for ( uint8_t n = 0; n < binaryBufferIndex; n++ )
+                {
+                  // Send that data on the serial bus
+                  putch(binaryBuffer[n]);
+                }
+                // End line with a newline
+                putch('\n');
         //         if(writeAddr == 0) {
         //           // First sector - validate
         // //           if(!validImage(pageBase)) {
@@ -642,21 +676,34 @@ static uint8_t processPacket(void)
                     break;
                 }
 
+
+
+
                 // Store last address and index
                 prevAddress = writeAddr;
                 prevIndex = index;
 
-                // Reset binary buffer
-                for (uint8_t k = 0; k < BINARY_BUFFER_SIZE; k++)
-                {
-                  binaryBuffer[k] = '\0';
-                }
 
-                binaryBufferIndex = 0;
               }
 
 
 
+              // Reset binary buffer
+              for (uint8_t k = 0; k < BINARY_BUFFER_SIZE; k++)
+              {
+                binaryBuffer[k] = '\0';
+              }
+
+              binaryBufferIndex = 0;
+
+
+              // Reset hex address buffer
+              hexAddressChars[0] = '\0';
+              hexAddressChars[1] = '\0';
+              hexAddressChars[2] = '\0';
+              hexAddressChars[3] = '\0';
+              hexAddressIndex = 0;
+              
               i+=2;
               // Reset index
               waitIndex = 0;
