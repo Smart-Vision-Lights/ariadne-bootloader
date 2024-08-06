@@ -445,7 +445,7 @@ static uint8_t processPacket(void)
           if ( isHexChar(curChar) && isHexChar(nextChar) && isHexChar(thirdChar) && i < TFTP_PACKET_MAX_SIZE-1 )
           {
             // Check to make sure this isn't the checksum, and that we haven't already gathered all the data we need
-            if ( thirdChar != '\r' && binaryBufferIndex < hexSize && recordType == '0' )
+            if ( thirdChar != '\r' && binaryBufferIndex < hexSize && recordType != '1' )
             {
 
                 // Add chars to hex line buffer
@@ -462,26 +462,9 @@ static uint8_t processPacket(void)
                 binaryBuffer[binaryBufferIndex++] = binaryVal;
 
 
-            }else if ( thirdChar != '\r' && recordType == '4' )
-            {
-              // Add memory extension if we need to
-              if ( hexAddressExtensionIndex == 0 )
-              {
-                hexAddressChars[0] = curChar;
-                hexAddressChars[1] = nextChar;
-                hexAddressExtensionIndex++;
-              }else
-              {
-                hexAddressChars[2] = curChar;
-                hexAddressChars[3] = nextChar;
-              }
-
             // If it is, move the index to the next ':'
             }else if ( thirdChar == '\r' || binaryBufferIndex >= hexSize )
             {
-              // Ensure this isn't an address extension
-              if ( recordType != '4' )
-              {
                 // Add chars to hex line buffer
                 hexLine[hexLineIndex++] = curChar;
                 hexLine[hexLineIndex++] = nextChar;
@@ -677,7 +660,7 @@ static uint8_t processPacket(void)
                   do {
                     
                     
-                    if ( recordType != '1' )
+                    if ( recordType == '0' )
                     {
                       writeValue = (pageBase[index]) | (pageBase[index + 1] << 8);
                       boot_page_fill(writeAddr + index, writeValue);
@@ -752,13 +735,6 @@ static uint8_t processPacket(void)
                 }
 
               
-              
-              // If this is an address extension, store it for all future hex addresses
-              }else
-              {
-                // hexAddressExtension = hexAddress;
-              }
-
               // Reset binary buffer
               for (uint8_t k = 0; k < BINARY_BUFFER_SIZE; k++)
               {
