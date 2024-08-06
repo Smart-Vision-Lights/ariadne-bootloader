@@ -132,6 +132,7 @@ uint16_t binaryBufferIndex = 0;
 // Buffer to hold any incomplete hex chars
 uint8_t overflowBuffer[2] = {'\0', '\0'};
 
+
 // Overflow for binary buffer
 uint8_t binaryBufferOverflow[BINARY_BUFFER_SIZE] = {'\0'};
 uint16_t binaryBufferOverflowIndex = 0;
@@ -391,6 +392,7 @@ static uint8_t processPacket(void)
         // Increment waiting counter
         if ( 1 == areWaiting && waitIndex < HEX_HEADER_SIZE )
         {
+          hexLine[hexLineIndex++] = curChar;
           // if ( 1 == lastWrite )
           // {
           //   hexLine[hexLineIndex++] = curChar;
@@ -446,9 +448,9 @@ static uint8_t processPacket(void)
             if ( thirdChar != '\r' && binaryBufferIndex < hexSize && recordType == '0' )
             {
 
-                // // Add chars to hex line buffer
-                // hexLine[hexLineIndex++] = curChar;
-                // hexLine[hexLineIndex++] = nextChar;
+                // Add chars to hex line buffer
+                hexLine[hexLineIndex++] = curChar;
+                hexLine[hexLineIndex++] = nextChar;
 
                 // Convert the current hex char pair to binary
                 char hexString[] = {curChar, nextChar};
@@ -480,6 +482,9 @@ static uint8_t processPacket(void)
               // Ensure this isn't an address extension
               if ( recordType != '4' )
               {
+                // Add chars to hex line buffer
+                hexLine[hexLineIndex++] = curChar;
+                hexLine[hexLineIndex++] = nextChar;
                 // if ( 1 == lastWrite )
                 // {
                 //   // Add chars to hex line buffer
@@ -548,36 +553,48 @@ static uint8_t processPacket(void)
                     // putch('@');
                   }
 
-                  // Pass hex data to the serial port
-
                   // Add label
                   putch('H');
                   putch('E');
                   putch('X');
                   putch(',');
-                  // Add hex address chars
-                  putch(hexAddressChars[0]);
-                  putch(hexAddressChars[1]);
-                  putch(hexAddressChars[2]);
-                  putch(hexAddressChars[3]);
-                  putch(hexAddressChars[4]);
-                  putch(hexAddressChars[5]);
-                  putch(hexAddressChars[6]);
-                  putch(hexAddressChars[7]);
-                  putch(',');
-                  // Add record type
-                  putch(recordType);
-                  putch(',');
-                  // Add size (number of bytes in the line)
-                  putch(hexSize);
-                  // Cycle through the entire packet
-                  for ( uint8_t n = 0; n < binaryBufferIndex; n++ )
+
+                  // Pass hex data to the serial port
+                  for ( uint8_t k = 0; k < hexLineIndex; k++ )
                   {
-                    // Send that data on the serial bus
-                    putch(binaryBuffer[n]);
+                    putch(hexLine[k]);
                   }
-                  // End line with a newline
                   putch('\n');
+
+
+                  // // Add label
+                  // putch('H');
+                  // putch('E');
+                  // putch('X');
+                  // putch(',');
+                  // // Add hex address chars
+                  // putch(hexAddressChars[0]);
+                  // putch(hexAddressChars[1]);
+                  // putch(hexAddressChars[2]);
+                  // putch(hexAddressChars[3]);
+                  // putch(hexAddressChars[4]);
+                  // putch(hexAddressChars[5]);
+                  // putch(hexAddressChars[6]);
+                  // putch(hexAddressChars[7]);
+                  // putch(',');
+                  // // Add record type
+                  // putch(recordType);
+                  // putch(',');
+                  // // Add size (number of bytes in the line)
+                  // putch(hexSize);
+                  // // Cycle through the entire packet
+                  // for ( uint8_t n = 0; n < binaryBufferIndex; n++ )
+                  // {
+                  //   // Send that data on the serial bus
+                  //   putch(binaryBuffer[n]);
+                  // }
+                  // // End line with a newline
+                  // putch('\n');
 
                   // Wait for an ack back on the serial bus
                   while ( getch() != 'K' && getch() != '\0' ) {}
@@ -749,6 +766,17 @@ static uint8_t processPacket(void)
               }
 
               binaryBufferIndex = 0;
+
+              for (uint8_t k = 0; k < HEX_LINE_BUFFER_SIZE; k++)
+              {
+                hexLine[k] = '\0';
+              }
+
+              hexLineIndex = 0;
+
+
+
+
 
 
               // Reset hex address buffer
