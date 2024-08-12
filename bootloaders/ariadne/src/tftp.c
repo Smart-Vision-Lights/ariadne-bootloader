@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <util/delay.h>
 
 #include "util.h"
 #include "spi.h"
@@ -579,8 +580,13 @@ static uint8_t processPacket(void)
                   // // End line with a newline
                   // putch('\n');
 
+                  // _delay_ms(100);
+
+                  // Get char from serial port
+                  char c = getch();
+
                   // Wait for an ack back on the serial bus
-                  while ( getch() != 'K' && getch() != '\0' ) {}
+                  while ( c != 'K' && c != '\0' ) { _delay_ms(20); c = getch(); }
 
                   // // Abort if we timed out
                   // if ( getTick() >= SERIAL_BUS_FLASH_TIMEOUT )
