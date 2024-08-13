@@ -118,7 +118,7 @@ int main(void)
 			// If tftp recieved a FINAL_ACK, break
 			if(tftpPoll() == 0) break;
 			// Exclude serial bootloading if specified in makefile
-#if !defined(__NO_SERIAL__)
+#if !defined(__NO_SERIAL_BL__)
       // If there is no tftp flashing, poll serial
       if(!tftpFlashing)
         // If flashing is done exit

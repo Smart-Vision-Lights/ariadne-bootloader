@@ -45,6 +45,11 @@ uint8_t tftpFlashing = FALSE;
 uint16_t tftpTransferPort;
 #endif
 
+
+#if defined(__SERIAL_PASSTHROUGH__)
+uint8_t receivedWriteReq = 0;
+#endif
+
 // How big of a buffer to fill with binary data from the .hex file
 #define BINARY_BUFFER_SIZE 16
 
@@ -85,7 +90,7 @@ static void sockInit(uint16_t port)
 	} while(spiReadReg(REG_S3_SR, S3_R_CB) != SOCK_UDP);
 }
 
-
+// ChatGPT generated function
 uint8_t hexCharToInt(char c) {
     c = toupper(c); // Convert to uppercase to handle both 'a'-'f' and 'A'-'F'
     if (c >= '0' && c <= '9') {
@@ -177,7 +182,7 @@ static uint8_t processPacket(uint16_t packetSize)
 static uint8_t processPacket(void)
 #endif
 {
-  // Added 1 to account for any overflow from the previous hex line
+  // TODO: The 4 extra bytes are (I think) unnecessary
 	uint8_t buffer[TFTP_PACKET_MAX_SIZE+4] = {'\0'};
 
 
@@ -310,6 +315,21 @@ static uint8_t processPacket(void)
 			// Flagging image as invalid since the flashing process has started
 			eeprom_write_byte(EEPROM_IMG_STAT, EEPROM_IMG_BAD_VALUE);
 
+#if defined(__SERIAL_PASSTHROUGH__)
+      // If this is the first write request, signal to the external device to enter bootloader mode as well
+      // by sending "HEX," without any hex data
+      if ( 0 == receivedWriteReq )
+      {
+        putch('H');
+        putch('E');
+        putch('X');
+        putch(',');
+        // Set flag
+        receivedWriteReq = 1;
+      }
+#endif
+
+
 #if defined(RANDOM_TFTP_DATA_PORT)
 			sockInit((buffer[4] << 8) | ~buffer[5]); // Generate a 'random' TID (RFC1350)
 #else
@@ -330,6 +350,7 @@ static uint8_t processPacket(void)
 			break;
 
 		case TFTP_OPCODE_DATA:
+
 
 
       // Cycle through the data in the buffer
@@ -492,20 +513,12 @@ static uint8_t processPacket(void)
 
 
                 // Check to see if we've filled the Atmel's memory yet
-                if( (writeAddr + packetLength) > MAX_ADDR || 1 == lastWrite )  {
-
-                  // // Flash is full - abort with an error before a bootloader overwrite occurs
-                  // // Application is now corrupt, so do not hand over.
-
-                  // DBG_TFTP(tracePGMlnTftp(mDebugTftp_FULL);)
-
-                  // returnCode = ERROR_FULL;
-
+                if( (writeAddr + packetLength) > MAX_ADDR || 1 == lastWrite ) 
+                {
 
                   // Finish writing the last page if we haven't already
                   if ( 0 == lastWrite )
                   {
-
                     // Round up to the next page
                     while(offset % SPM_PAGESIZE)
                     {
@@ -537,6 +550,9 @@ static uint8_t processPacket(void)
                     // putch('@');
                   }
 
+
+                  // Pass any furthur data from the hex file on to the serial bus (for flashing an additional external device from the same file)
+#if defined(__SERIAL_PASSTHROUGH__)
                   // Add label
                   putch('H');
                   putch('E');
@@ -548,124 +564,34 @@ static uint8_t processPacket(void)
                   {
                     putch(hexLine[k]);
                   }
+                  // End line with newline char
                   putch('\n');
-
-
-                  // // Add label
-                  // putch('H');
-                  // putch('E');
-                  // putch('X');
-                  // putch(',');
-                  // // Add hex address chars
-                  // putch(hexAddressChars[0]);
-                  // putch(hexAddressChars[1]);
-                  // putch(hexAddressChars[2]);
-                  // putch(hexAddressChars[3]);
-                  // putch(hexAddressChars[4]);
-                  // putch(hexAddressChars[5]);
-                  // putch(hexAddressChars[6]);
-                  // putch(hexAddressChars[7]);
-                  // putch(',');
-                  // // Add record type
-                  // putch(recordType);
-                  // putch(',');
-                  // // Add size (number of bytes in the line)
-                  // putch(hexSize);
-                  // // Cycle through the entire packet
-                  // for ( uint8_t n = 0; n < binaryBufferIndex; n++ )
-                  // {
-                  //   // Send that data on the serial bus
-                  //   putch(binaryBuffer[n]);
-                  // }
-                  // // End line with a newline
-                  // putch('\n');
-
-                  // _delay_ms(100);
 
                   // Get char from serial port
                   char c = getch();
 
                   // Wait for an ack back on the serial bus
-                  while ( c != 'K' && c != '\0' ) { _delay_ms(20); c = getch(); }
+                  while ( c != 'K' && c != '\0' && c != 'E' ) { _delay_ms(20); c = getch(); }
+                  // If we got an error, pass that back to the client
+                  if ( c == 'E' )
+                  {
+                    returnCode = ERROR_UNKNOWN;
+                  }
+#endif
 
-                  // // Abort if we timed out
-                  // if ( getTick() >= SERIAL_BUS_FLASH_TIMEOUT )
-                  // {
-                  //   returnCode = ERROR_UNKNOWN;
-                  //   break;
-                  // }
-
-                  // // Break out of the loop if we've reached the end of the file
-                  // if ( recordType == '1' )
-                  // {
-                  //   break;
-                  // }
-
-                  // // Reset hex line
-                  // for ( uint8_t n = 0; n < HEX_LINE_BUFFER_SIZE; n++ )
-                  // {
-                  //   hexLine[n] = '\0';
-                  // }
-                  // // Reset hex line index
-                  // hexLineIndex = 0;
-
-                  // Either the Atmel is full, or else the memory address is outside our range,
-                  // so move on to just printing out the hex data on the serial bus
-
-
-
-                  // putch('!');
-
+#if !defined(__SERIAL_PASSTHROUGH__)
+                  // We've exceeded the Atmel's memory capacity
+                  returnCode = ERROR_FULL;
+                  break;
+#endif
 
                 } else {
 
                   // uint8_t* pageBase = buffer + (UDP_HEADER_SIZE + TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE); // Start of block data
                   uint8_t* pageBase = binaryBuffer; // Start of block data
-
-                                  // Add label
-                  // putch('H');
-                  // putch('E');
-                  // putch('X');
-                  // putch(',');
-                  // // Add hex address chars
-                  // putch(hexAddressChars[4]);
-                  // putch(hexAddressChars[5]);
-                  // putch(hexAddressChars[6]);
-                  // putch(hexAddressChars[7]);
-                  // putch(',');
-                  // // Add record type
-                  // putch(recordType);
-                  // putch(',');
-                  // // Add size (number of bytes in the line)
-                  // putch(hexSize);
-                  // // Cycle through the entire packet
-                  // for ( uint8_t n = 0; n < binaryBufferIndex; n++ )
-                  // {
-                  //   // Send that data on the serial bus
-                  //   putch(binaryBuffer[n]);
-                  // }
-                  // // End line with a newline
-                  // putch('\n');
-
-
-
-          //         if(writeAddr == 0) {
-          //           // First sector - validate
-          // //           if(!validImage(pageBase)) {
-
-          // // #if defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__)
-          // //             /* FIXME: Validity checks. Small programms (under 512 bytes?) don't
-          // //             * have the the JMP sections and that is why app.bin was failing.
-          // //             * When flashing big binaries is fixed, uncomment the break below.*/
-          // //             returnCode = INVALID_IMAGE;
-          // //             break;
-          // // #endif
-          // //           }
-          //         }
           
                   do {
-                    
-                    
+                    // If we have a data line, write the data
                     if ( recordType == '0' )
                     {
                       writeValue = (pageBase[index]) | (pageBase[index + 1] << 8);
@@ -698,7 +624,7 @@ static uint8_t processPacket(void)
                   } while( index < packetLength );
 
 
-
+                  // End of file line
                   if ( recordType == '1' )
                   {
                       // Round up to the next page
@@ -736,12 +662,10 @@ static uint8_t processPacket(void)
                   // Store last address and index
                   prevAddress = writeAddr;
                   prevIndex = index;
-
-
                 }
 
               
-              // Reset binary buffer
+              // Reset binary buffers
               for (uint8_t k = 0; k < BINARY_BUFFER_SIZE; k++)
               {
                 binaryBuffer[k] = '\0';
@@ -771,7 +695,7 @@ static uint8_t processPacket(void)
               hexAddressChars[6] = '\0';
               hexAddressChars[7] = '\0';
               hexAddressIndex = 4;
-              
+              // Increment i
               i+=2;
               // Reset index
               waitIndex = 0;
@@ -804,7 +728,7 @@ static uint8_t processPacket(void)
 
       // Set the return code before packetLength gets rounded up
       if (tftpDataLen - (TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE) < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
-      else returnCode = ACK;
+      else if (returnCode != ERROR_UNKNOWN) returnCode = ACK;
 
       DBG_TFTP(tracePGMlnTftp(mDebugTftp_OPDATA);)
 
@@ -963,6 +887,11 @@ void tftpInit(void)
 {
 	// Open socket
 	sockInit(TFTP_PORT);
+
+#if defined(__SERIAL_PASSTHROUGH__)
+  // Reset flag for telling external device to bootload
+  receivedWriteReq = 0;
+#endif
 
 #if defined(RANDOM_TFTP_DATA_PORT)
 #else
