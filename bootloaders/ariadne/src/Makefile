@@ -531,7 +531,7 @@ atmega32u4_w5500_isp: isp
 atmega32u4_w5500_alwaysBootload_passthrough_9600: EXT_OBJ = optiboot.o
 atmega32u4_w5500_alwaysBootload_passthrough_9600: TARGET = atmega32u4_w5500_alwaysBootload_passthrough_9600
 atmega32u4_w5500_alwaysBootload_passthrough_9600: MCU_TARGET = atmega32u4
-atmega32u4_w5500_alwaysBootload_passthrough_9600: CFLAGS += '-D__WIZ_W5500__' '-DBAUD_RATE=9600' '-D__ALWAYS_BOOTLOAD__' '-D__AVR_ATmega32u4_w5500__' '-D__NO_SERIAL_BOOTLOAD__' '-D__SERIAL_PASSTHROUGH__'
+atmega32u4_w5500_alwaysBootload_passthrough_9600: CFLAGS += '-D__WIZ_W5500__' '-DBAUD_RATE=9600' '-D__ALWAYS_BOOTLOAD__' '-D__AVR_ATmega32u4_w5500__' '-D__NO_SERIAL_BL__' '-D__SERIAL_PASSTHROUGH__'
 atmega32u4_w5500_alwaysBootload_passthrough_9600: AVR_FREQ = 16000000L
 atmega32u4_w5500_alwaysBootload_passthrough_9600: LDSECTIONS  = -Wl,--section-start=.text=0x7000 #-Wl,--section-start=.version=0x7ffe
 atmega32u4_w5500_alwaysBootload_passthrough_9600: $(PROGRAM)_atmega32u4_w5500.hex

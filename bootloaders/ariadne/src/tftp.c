@@ -48,6 +48,7 @@ uint16_t tftpTransferPort;
 
 #if defined(__SERIAL_PASSTHROUGH__)
 uint8_t receivedWriteReq = 0;
+uint8_t externalError = 0;
 #endif
 
 // How big of a buffer to fill with binary data from the .hex file
@@ -315,20 +316,6 @@ static uint8_t processPacket(void)
 			// Flagging image as invalid since the flashing process has started
 			eeprom_write_byte(EEPROM_IMG_STAT, EEPROM_IMG_BAD_VALUE);
 
-#if defined(__SERIAL_PASSTHROUGH__)
-      // If this is the first write request, signal to the external device to enter bootloader mode as well
-      // by sending "HEX," without any hex data
-      if ( 0 == receivedWriteReq )
-      {
-        putch('H');
-        putch('E');
-        putch('X');
-        putch(',');
-        // Set flag
-        receivedWriteReq = 1;
-      }
-#endif
-
 
 #if defined(RANDOM_TFTP_DATA_PORT)
 			sockInit((buffer[4] << 8) | ~buffer[5]); // Generate a 'random' TID (RFC1350)
@@ -347,6 +334,23 @@ static uint8_t processPacket(void)
 
 			lastPacket = highPacket = 0;
 			returnCode = ACK; // Send back acknowledge for packet 0
+
+
+#if defined(__SERIAL_PASSTHROUGH__)
+      // If this is the first write request, signal to the external device to enter bootloader mode as well
+      // by sending "HEX," without any hex data
+      if ( 0 == receivedWriteReq )
+      {
+        putch('H');
+        putch('E');
+        putch('X');
+        putch(',');
+        putch('\n');
+        // Set flag
+        receivedWriteReq = 1;
+      }
+#endif
+
 			break;
 
 		case TFTP_OPCODE_DATA:
@@ -575,13 +579,17 @@ static uint8_t processPacket(void)
                   // If we got an error, pass that back to the client
                   if ( c == 'E' )
                   {
+                    externalError = 1;
                     returnCode = ERROR_UNKNOWN;
                   }
 #endif
 
 #if !defined(__SERIAL_PASSTHROUGH__)
-                  // We've exceeded the Atmel's memory capacity
-                  returnCode = ERROR_FULL;
+                  if ((writeAddr + packetLength) > MAX_ADDR)
+                  {
+                    // We've exceeded the Atmel's memory capacity
+                    returnCode = ERROR_FULL;
+                  }
                   break;
 #endif
 
@@ -728,7 +736,7 @@ static uint8_t processPacket(void)
 
       // Set the return code before packetLength gets rounded up
       if (tftpDataLen - (TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE) < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
-      else if (returnCode != ERROR_UNKNOWN) returnCode = ACK;
+      else if (externalError != 1) returnCode = ACK;
 
       DBG_TFTP(tracePGMlnTftp(mDebugTftp_OPDATA);)
 
