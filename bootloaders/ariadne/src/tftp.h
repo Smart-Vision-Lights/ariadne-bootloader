@@ -32,6 +32,7 @@
 #define ERROR_FULL    3
 #define FINAL_ACK     4 /// Like an ACK, but for the final data packet. Internal use only.
 #define INVALID_IMAGE 5
+#define BOOTLOADER_VERSION_TYPE 6 // Not to TFTP spec. Used for network clients to get the firmware version of the bootloader
 
 
 #if defined(__AVR_ATmega328P__) || defined(__AVR_ATmega32U4__)

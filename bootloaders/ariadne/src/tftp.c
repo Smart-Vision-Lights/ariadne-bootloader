@@ -14,13 +14,13 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
-#include <util/delay.h>
 
 #include "util.h"
 #include "spi.h"
 #include "net.h"
 #include "neteeprom.h"
 #include "tftp.h"
+#include "neteeprom.h"
 #include "validate.h"
 #include "serial.h"
 #include "debug.h"
@@ -38,6 +38,16 @@ const unsigned char tftp_unknown_error_packet[] PROGMEM = "\0\5" "\0\0" "Error";
 /** Invalid image file: Doesn't look like a binary image file */
 #define TFTP_INVALID_IMAGE_LEN 23
 const unsigned char tftp_invalid_image_packet[] PROGMEM = "\0\5" "\0\0" "Invalid image file";
+
+
+
+/** Bootloader version packet. This will be returned upon request, which
+ *  is not to TFTP spec, but is the best solution for the space available)
+ *  
+ * 
+ * Message to send to UDP port 69 is "GTFW" */
+const unsigned char tftp_bootloader_version_packet[] PROGMEM = "FW:" ARIADNE_MAJVER_STR "." ARIADNE_MINVER_STR "\n";
+#define TFTP_BOOTLOADER_VERSION_LEN sizeof(tftp_bootloader_version_packet)
 
 uint16_t lastPacket = 0, highPacket = 0;
 uint8_t tftpFlashing = FALSE;
@@ -156,6 +166,7 @@ uint8_t writeData = 0;
 uint8_t recordType = '\0';
 // Buffer to hold the current hex line in its complete char form
 #define HEX_LINE_BUFFER_SIZE 64
+#define HEX_HEADER_SIZE 9
 uint8_t hexLine[HEX_LINE_BUFFER_SIZE] = {'0'};
 uint8_t hexLineIndex = 0;
 // Buffer to hold the address chars of the current hex line
@@ -175,6 +186,7 @@ uint32_t hexAddress = 0;
 uint8_t lastWrite = 0;
 uint8_t doneLastWrite = 0;
 uint16_t offset = 0; // Block offset
+
 
 
 #if (DEBUG_TFTP > 0)
@@ -270,16 +282,23 @@ static uint8_t processPacket(void)
 
 	DBG_TFTP(tracePGMlnTftp(mDebugTftp_RADDR);)
 
+  // putch(buffer[8]);
+  // putch(buffer[9]);
+  // putch(buffer[10]);
+  // putch(buffer[11]);
 
+  // Check for firmware version request
+  if ( buffer[8] == 'G' && buffer[9] == 'T' && buffer[10] == 'F' && buffer[11] == 'W' )
+  {
+    // Exit and return bootloader version (message is sent in sendResponse() function)
+    return BOOTLOADER_VERSION_TYPE;
+  }
 
 
 	// Parse packet
 	uint16_t tftpDataLen = (buffer[6] << 8) + buffer[7];
 	uint16_t tftpOpcode  = (buffer[8] << 8) + buffer[9];
 	uint16_t tftpBlock   = (buffer[10] << 8) + buffer[11];
-
-  #define HEX_HEADER_SIZE 9
-
 
 	DBG_TFTP(
 		tracePGMlnTftp(mDebugTftp_BLOCK);
@@ -304,7 +323,9 @@ static uint8_t processPacket(void)
 	switch(tftpOpcode) {
 
 		case TFTP_OPCODE_RRQ: // Read request
+
 			DBG_TFTP(tracePGMlnTftp(mDebugTftp_OPRRQ);)
+
 			break;
 
 		case TFTP_OPCODE_WRQ: // Write request
@@ -664,9 +685,6 @@ static uint8_t processPacket(void)
                       break;
                   }
 
-
-
-
                   // Store last address and index
                   prevAddress = writeAddr;
                   prevIndex = index;
@@ -863,6 +881,19 @@ static void sendResponse(uint16_t response)
 			*txPtr++ = lastPacket >> 8;
 			*txPtr = lastPacket & 0xff;
 			break;
+
+    
+    // Send back bootloader version
+    case BOOTLOADER_VERSION_TYPE:
+
+			packetLength = TFTP_BOOTLOADER_VERSION_LEN;
+#if (FLASHEND > 0x10000)
+			memcpy_PF(txBuffer, PROGMEM_OFFSET + (uint32_t)(uint16_t)tftp_bootloader_version_packet, packetLength);
+#else
+			memcpy_P(txBuffer, tftp_bootloader_version_packet, packetLength);
+#endif
+
+      break;
 	}
 
 	txPtr = txBuffer;
@@ -883,6 +914,25 @@ static void sendResponse(uint16_t response)
 	spiWriteReg(REG_S3_CR, S3_W_CB, CR_SEND);
 
 	while(spiReadReg(REG_S3_CR, S3_R_CB));
+
+
+
+  // Reset if necessary
+  if ( response == BOOTLOADER_VERSION_TYPE || response ==  ERROR_INVALID || 
+          response == ERROR_UNKNOWN )
+  {
+      // Delay required to allow message to be sent before reset (or something)
+      // 1ms seems to work fine, made it 10ms to give some room for error
+      _delay_ms(10);
+#if defined(__AVR_ATmega32u4_w5500__)
+      // Reinitialize networking (32u4_w5500 requires this for the TFTP to reinitialize properly, haven't tested other platforms)
+      netInit();
+#endif
+      // Reinitialize TFTP
+      tftpInit();
+      // Reset the timeout counter
+      resetTick();
+  }
 
 	DBG_TFTP(tracePGMlnTftp(mDebugTftp_RESP);)
 }
