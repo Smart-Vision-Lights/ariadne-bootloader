@@ -46,7 +46,7 @@ const unsigned char tftp_invalid_image_packet[] PROGMEM = "\0\5" "\0\0" "Invalid
  *  
  * 
  * Message to send to UDP port 69 is "GTFW" */
-const unsigned char tftp_bootloader_version_packet[] PROGMEM = "FW:" ARIADNE_MAJVER_STR "." ARIADNE_MINVER_STR "\n";
+const unsigned char tftp_bootloader_version_packet[] PROGMEM = "FW:" ARIADNE_MAJVER_CH "." ARIADNE_MINVER_CH "\n";
 #define TFTP_BOOTLOADER_VERSION_LEN sizeof(tftp_bootloader_version_packet)
 
 uint16_t lastPacket = 0, highPacket = 0;
@@ -196,7 +196,7 @@ static uint8_t processPacket(void)
 #endif
 {
   // TODO: The 4 extra bytes are (I think) unnecessary
-	uint8_t buffer[TFTP_PACKET_MAX_SIZE+4] = {'\0'};
+	uint8_t buffer[TFTP_PACKET_MAX_SIZE] = {'\0'};
 
 
 	uint16_t readPointer;
@@ -898,22 +898,22 @@ static void sendResponse(uint16_t response)
       putch('F');
       putch('W');
       putch('\n');
-      // Wait for a reply
-      _delay_ms(10);
-      // Buffer to hold the version (comprising this bootloader's version, and that of the external device)
-      char totalVersion[6] = {'\0'};
       // Index
       uint8_t index = 0;
       // Get the version
       char c = getch();
       while ( c != '\0' && index < 3 )
       {
+        // Store char
         txBuffer[index++] = c;
+        // Get next char
+        c = getch();
       }
       // Append this bootloader's version (the + '0' converts the int to a char)
+      txBuffer[index++] = '.';
       txBuffer[index++] = ARIADNE_MAJVER + '0';
-      txBuffer[index] = ARIADNE_MINVER + '0';
-      // index+=sizeof(ARIADNE_MINVER_STR);
+      txBuffer[index++] = '.';
+      txBuffer[index++] = ARIADNE_MINVER + '0';
 
 			packetLength = index;
 // #if (FLASHEND > 0x10000)
