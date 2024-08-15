@@ -604,6 +604,11 @@ static uint8_t processPacket(void)
                     returnCode = ERROR_UNKNOWN;
                   }
 #endif
+                  // Break if we've reached the end of the file
+                  if ( '1' == recordType )
+                  {
+                    break;
+                  }
 
 #if !defined(__SERIAL_PASSTHROUGH__)
                   if ((writeAddr + packetLength) > MAX_ADDR)
@@ -885,6 +890,42 @@ static void sendResponse(uint16_t response)
     
     // Send back bootloader version
     case BOOTLOADER_VERSION_TYPE:
+
+#if defined(__SERIAL_PASSTHROUGH__)
+      // Get firmware version of external device's bootloader
+      putch('G');
+      putch('T');
+      putch('F');
+      putch('W');
+      putch('\n');
+      // Wait for a reply
+      _delay_ms(10);
+      // Buffer to hold the version (comprising this bootloader's version, and that of the external device)
+      char totalVersion[6] = {'\0'};
+      // Index
+      uint8_t index = 0;
+      // Get the version
+      char c = getch();
+      while ( c != '\0' && index < 3 )
+      {
+        txBuffer[index++] = c;
+      }
+      // Append this bootloader's version (the + '0' converts the int to a char)
+      txBuffer[index++] = ARIADNE_MAJVER + '0';
+      txBuffer[index] = ARIADNE_MINVER + '0';
+      // index+=sizeof(ARIADNE_MINVER_STR);
+
+			packetLength = index;
+// #if (FLASHEND > 0x10000)
+// 			memcpy_PF(txBuffer, PROGMEM_OFFSET + (uint32_t)(uint16_t)totalVersion, packetLength);
+// #else
+			// memcpy_P(txBuffer, totalVersion, packetLength);
+
+// #endif
+      break;
+#endif
+
+
 
 			packetLength = TFTP_BOOTLOADER_VERSION_LEN;
 #if (FLASHEND > 0x10000)

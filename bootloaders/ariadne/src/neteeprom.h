@@ -21,10 +21,10 @@
 #define REGISTER_BLOCK_SIZE  28
 
 /* EEPROM values */
-#define ARIADNE_MAJVER 1
-#define ARIADNE_MAJVER_STR "1"
-#define ARIADNE_MINVER 0
-#define ARIADNE_MINVER_STR "0"
+#define ARIADNE_MAJVER 0
+// #define ARIADNE_MAJVER_CH '0'
+#define ARIADNE_MINVER 2
+// #define ARIADNE_MAJVER_CH '2'
 
 #define EEPROM_IMG_OK_VALUE  (0xEE)
 #define EEPROM_IMG_BAD_VALUE (0xFF)
