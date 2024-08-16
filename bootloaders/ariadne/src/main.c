@@ -165,6 +165,15 @@ int main(void)
 }
 
 void appStart(void) {
+#if defined(__SERIAL_PASSTHROUGH__)
+    // Signal to external device to leave bootloader mode
+    putch('E');
+    putch('X');
+    putch('I');
+    putch('T');
+    putch('\n');
+    _delay_ms(10);
+#endif
     asm volatile(
         "clr    r30     \n\t"
         "clr    r31     \n\t"
