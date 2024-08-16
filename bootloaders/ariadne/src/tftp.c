@@ -195,8 +195,8 @@ static uint8_t processPacket(uint16_t packetSize)
 static uint8_t processPacket(void)
 #endif
 {
-  // TODO: The 4 extra bytes are (I think) unnecessary
-	uint8_t buffer[TFTP_PACKET_MAX_SIZE] = {'\0'};
+  // The extra 4 bytes of space are necessary for the hex parsing process, removing these 4 bytes breaks everything
+	uint8_t buffer[TFTP_PACKET_MAX_SIZE+4] = {'\0'};
 
 
 	uint16_t readPointer;
@@ -898,22 +898,22 @@ static void sendResponse(uint16_t response)
       putch('F');
       putch('W');
       putch('\n');
+      // Wait for a reply
+      _delay_ms(10);
+      // Buffer to hold the version (comprising this bootloader's version, and that of the external device)
+      char totalVersion[6] = {'\0'};
       // Index
       uint8_t index = 0;
       // Get the version
       char c = getch();
       while ( c != '\0' && index < 3 )
       {
-        // Store char
         txBuffer[index++] = c;
-        // Get next char
-        c = getch();
       }
       // Append this bootloader's version (the + '0' converts the int to a char)
-      txBuffer[index++] = '.';
       txBuffer[index++] = ARIADNE_MAJVER + '0';
-      txBuffer[index++] = '.';
-      txBuffer[index++] = ARIADNE_MINVER + '0';
+      txBuffer[index] = ARIADNE_MINVER + '0';
+      // index+=sizeof(ARIADNE_MINVER_STR);
 
 			packetLength = index;
 // #if (FLASHEND > 0x10000)
