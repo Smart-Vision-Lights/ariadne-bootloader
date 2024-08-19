@@ -23,7 +23,7 @@
 /*
  * use 16bit address variable for ATmegas with <= 64K flash
  */
-#if defined(RAMPZ)
+#if defined(RAMPZ) || defined(__SERIAL_PASSTHROUGH__)
 	typedef uint32_t address_t;
 #else
 	typedef uint16_t address_t;

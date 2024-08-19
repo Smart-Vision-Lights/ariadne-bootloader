@@ -11,6 +11,7 @@
 #include <avr/pgmspace.h>
 #include <avr/wdt.h>
 #include <util/delay.h>
+#include <stdio.h>
 
 #include "serial.h"
 #include "watchdog.h"
@@ -62,12 +63,37 @@ void puthex(uint8_t c)
 	putch(c + '0');
 }
 
+void putint(uint32_t c)
+{
+    // Buffer to store the conversion
+    char buffer[6]; // Maximum 3 digits + 1 for the null terminator
+
+    // Convert the uint8_t to string using snprintf (safe and compact)
+    snprintf(buffer, 6, "%lu", c);
+
+    // Print to serial port
+    for (uint8_t i = 0; buffer[i] != '\0'; i++)
+    {
+      putch(buffer[i]);
+    }
+}
+
+
+#define SERIAL_READ_TIMEOUT 1000000
+// #define SERIAL_READ_TIMEOUT 10000
 
 uint8_t getch(void)
 {
 	//uint8_t ch;
+  uint32_t time = 0;
 
-	while(!(UART_STATUS_REG & _BV(UART_RECEIVE_COMPLETE)));
+	while(!(UART_STATUS_REG & _BV(UART_RECEIVE_COMPLETE)) && time++ < SERIAL_READ_TIMEOUT);
+
+  if ( time >= SERIAL_READ_TIMEOUT )
+  {
+    return '\0';
+  }
+
 	if(!(UART_STATUS_REG & _BV(UART_FRAME_ERROR))) {
 		/*
 		 * A Framing Error indicates (probably) that something is talking

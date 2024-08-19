@@ -40,6 +40,10 @@ uint8_t tftpFlashing = FALSE;
 uint16_t tftpTransferPort;
 #endif
 
+#if defined(__SERIAL_PASSTHROUGH__)
+uint8_t flashStarted = 0;
+#endif
+
 static void sockInit(uint16_t port)
 {
 	DBG_TFTP(
@@ -178,7 +182,7 @@ static uint8_t processPacket(void)
 	)
 
 	if((tftpOpcode == TFTP_OPCODE_DATA)
-		&& ((tftpBlock > MAX_ADDR / 0x200) || (tftpBlock < highPacket) || (tftpBlock > highPacket + 1)))
+		&& ( (tftpBlock < highPacket) || (tftpBlock > highPacket + 1)))
 		tftpOpcode = TFTP_OPCODE_UKN;
 
 	if(tftpDataLen > (0x200 + TFTP_OPCODE_SIZE + TFTP_BLOCKNO_SIZE))
@@ -236,13 +240,49 @@ static uint8_t processPacket(void)
 			writeAddr = (address_t)((address_t)(tftpBlock - 1) << 9); // Flash write address for this block
 #endif
 
+      // putint(writeAddr);
+      // putch('\n');
+
 			if((writeAddr + packetLength) > MAX_ADDR) {
+
+#if !defined(__SERIAL__PASSTHROUGH)
 				// Flash is full - abort with an error before a bootloader overwrite occurs
 				// Application is now corrupt, so do not hand over.
-
 				DBG_TFTP(tracePGMlnTftp(mDebugTftp_FULL);)
 
 				returnCode = ERROR_FULL;
+#else
+        if ( 0 == flashStarted )
+        {
+          putch('H');
+          putch('E');
+          putch('X');
+          putch('\n');
+          flashStarted = 1;
+        }
+
+        for ( uint16_t j = 0; j < packetLength; j++ )
+        {
+          putch(buffer[i]);
+        }
+
+        // Set the return code
+				if(packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
+				else returnCode = ACK;
+
+        // Get char from serial port
+        char c = getch();
+
+        // Wait for an ack back on the serial bus
+        while ( c != 'K' && c != '\0' && c != 'E' ) { _delay_ms(20); c = getch(); }
+        // If we got an error, pass that back to the client
+        if ( c == 'E' )
+        {
+          // externalError = 1;
+          returnCode = ERROR_UNKNOWN;
+        }
+#endif
+
 			} else {
 
 				DBG_TFTP(
@@ -478,6 +518,11 @@ void tftpInit(void)
 		tracenum(tftpTransferPort);
 #endif
 	)
+
+#if defined(__SERIAL_PASSTHROUGH__)
+flashStarted = 0;
+#endif
+
 }
 
 
