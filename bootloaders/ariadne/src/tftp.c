@@ -245,7 +245,7 @@ static uint8_t processPacket(void)
 
 			if((writeAddr + packetLength) > MAX_ADDR) {
 
-#if !defined(__SERIAL__PASSTHROUGH)
+#if !defined(__SERIAL_PASSTHROUGH__)
 				// Flash is full - abort with an error before a bootloader overwrite occurs
 				// Application is now corrupt, so do not hand over.
 				DBG_TFTP(tracePGMlnTftp(mDebugTftp_FULL);)
