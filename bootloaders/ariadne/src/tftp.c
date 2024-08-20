@@ -261,26 +261,80 @@ static uint8_t processPacket(void)
           flashStarted = 1;
         }
 
-        for ( uint16_t j = 0; j < packetLength; j++ )
+
+        uint8_t j = 0;
+        uint16_t k = 0;
+
+        if ( k >= packetLength )
         {
-          putch(buffer[i]);
+          // Set the return code
+          if(packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
+          else returnCode = ACK;
+        }
+        // Cycle through the packet in 4 rounds to keep each transfer small
+        while ( k < packetLength )
+        { 
+          while ( j < 128 && k < packetLength )
+          {
+            // Put the next char in the serial port
+            putch(buffer[k++]);
+            // Increment counter
+            j++;
+          }
+
+
+          // Set the return code
+          if(packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
+          else returnCode = ACK;
+
+          // If we have reached the end of the file, fill the rest of the transfer with null chars
+          if ( returnCode == FINAL_ACK )
+          {
+            while ( j++ % 128 != 0 )
+            {
+              putch('\0');
+            }
+            break;
+          }
+
+          // We've printed 128 bytes, wait for an ACK
+          char c = getch();
+
+          // Wait for an ack back on the serial bus
+          while ( c != 'K' && c != '\0' && c != 'E' && c != 'A' ) { _delay_ms(20); c = getch(); }
+          // If we got an error, pass that back to the client
+          if ( c == 'E' )
+          {
+            // externalError = 1;
+            returnCode = ERROR_UNKNOWN;
+          }
+
+          // Reset counter
+          j = 0;
         }
 
-        // Set the return code
-				if(packetLength < TFTP_DATA_SIZE) returnCode = FINAL_ACK;
-				else returnCode = ACK;
+				if(returnCode == FINAL_ACK) {
+					// Flash is complete
+					// Hand over to application
 
-        // Get char from serial port
-        char c = getch();
+					DBG_TFTP(tracePGMlnTftp(mDebugTftp_DONE);)
 
-        // Wait for an ack back on the serial bus
-        while ( c != 'K' && c != '\0' && c != 'E' ) { _delay_ms(20); c = getch(); }
-        // If we got an error, pass that back to the client
-        if ( c == 'E' )
-        {
-          // externalError = 1;
-          returnCode = ERROR_UNKNOWN;
-        }
+					// Flag the image as valid since we received the last packet
+					eeprom_write_byte(EEPROM_IMG_STAT, EEPROM_IMG_OK_VALUE);
+          break;
+				}
+
+        // // Get char from serial port
+        // char c = getch();
+
+        // // Wait for an ack back on the serial bus
+        // while ( c != 'K' && c != '\0' && c != 'E' ) { _delay_ms(20); c = getch(); }
+        // // If we got an error, pass that back to the client
+        // if ( c == 'E' )
+        // {
+        //   // externalError = 1;
+        //   returnCode = ERROR_UNKNOWN;
+        // }
 #endif
 
 			} else {
