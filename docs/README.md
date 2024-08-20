@@ -1,3 +1,11 @@
+## Firmware reporting (for ATMEGA32U4)
+When built with external device flashing (__SERIAL_PASSTHROUGH__ build option), sending the message "GTFW" to the TFTP port will return the following.
+
+`<externalDeviceBootloaderFirmwareVersion>.<ariadneBootloaderFirmwareVersion>` Example: `0.1.0.2`
+
+The Atmel creates this collective firmware version by sending "GETFW\n" on the serial port, then attaching whatever version comes back from the external device to the firmware verison of itself.
+
+
 ## Bootloader for Arduino with Ethernet
 This is a beta stage bootloader for Arduino Ethernet board and the regular Arduino with Ethernet Shield.
 It is based on previous unfinished work by the Arduino developers. The bootloader implements a TFTP
