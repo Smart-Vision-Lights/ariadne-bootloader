@@ -44,7 +44,7 @@ class NewEEPROMClass {
 		void write(int, uint8_t);
 };
 
-extern NewEEPROMClass NewEEPROM;
+extern NewEEPROMClass EEPROM;
 
 #endif
 
