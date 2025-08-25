@@ -68,13 +68,60 @@ uint8_t externalError = 0;
 #define SERIAL_BUS_FLASH_TIMEOUT 10
 
 
+
+// Buffer to hold the data to be written to the Atmel
+uint8_t binaryBuffer[BINARY_BUFFER_SIZE] = {'\0'};
+uint16_t binaryBufferIndex = 0;
+// Buffer to hold any incomplete hex chars
+uint8_t overflowBuffer[2] = {'\0', '\0'};
+
+
+// Overflow for binary buffer
+//uint8_t binaryBufferOverflow[BINARY_BUFFER_SIZE] = {'\0'};
+//uint16_t binaryBufferOverflowIndex = 0;
+// Number of times the binary buffer has been filled
+uint16_t fillCount = 0;
+
+// Index to tell us how many chars we've let pass by
+uint8_t waitIndex = 0;
+// Whether or not we are waiting
+uint8_t areWaiting = 0;
+// Whether or not the binary buffer is full and ready to be written
+uint8_t writeData = 0;
+// Record type of hex line
+uint8_t recordType = '\0';
+// Buffer to hold the current hex line in its complete char form
+#define HEX_LINE_BUFFER_SIZE 64
+#define HEX_HEADER_SIZE 9
+uint8_t hexLine[HEX_LINE_BUFFER_SIZE] = {'0'};
+uint8_t hexLineIndex = 0;
+// Buffer to hold the address chars of the current hex line
+char hexAddressChars[8] = {'0','0','0','0','\0','\0','\0','\0'};
+// Used to extend the address if necessary
+//char hexAddressExtensionChars[4] = {'\0','\0','\0','\0'};
+//uint8_t hexAddressExtensionIndex = 0;
+
+uint8_t hexAddressIndex = 4;
+// How big the current line of data is
+char hexSizeChars[2] = {'\0', '\0'};
+uint8_t hexSizeCharsIndex = 0;
+uint16_t hexSize = 0;
+// Actual location in memory to write to
+uint32_t hexAddress = 0;
+// Last write reached (it will probably be smaller than 512 bytes)
+uint8_t lastWrite = 0;
+//uint8_t doneLastWrite = 0;
+uint16_t offset = 0; // Block offset
+
+
+
 static void sockInit(uint16_t port)
 {
 	DBG_TFTP(
 		tracePGMlnTftp(mDebugTftp_SOCK);
 		tracenum(port);
 	)
-
+	
 	spiWriteReg(REG_S3_CR, S3_W_CB, CR_CLOSE);
     while(spiReadReg(REG_S3_CR, S3_R_CB)) {
 		//wait for command to complete
@@ -114,6 +161,7 @@ uint8_t hexCharToInt(char c) {
     }
 }
 
+
 uint32_t hexStringToUint(const char *hexString, uint8_t size) {
     
     uint32_t nibbles[8] = {hexCharToInt(hexString[0]), hexCharToInt(hexString[1]), hexCharToInt(hexString[2]), hexCharToInt(hexString[3]),
@@ -141,52 +189,6 @@ uint8_t isHexChar(uint8_t value)
            value == 'A' || value == 'B' || value == 'C' || value == 'D' || value == 'E' ||
             value == 'F' || value == '\r' || value == '\n' || value == ':';
 }
-
-
-// Buffer to hold the data to be written to the Atmel
-uint8_t binaryBuffer[BINARY_BUFFER_SIZE] = {'\0'};
-uint16_t binaryBufferIndex = 0;
-// Buffer to hold any incomplete hex chars
-uint8_t overflowBuffer[2] = {'\0', '\0'};
-
-
-// Overflow for binary buffer
-uint8_t binaryBufferOverflow[BINARY_BUFFER_SIZE] = {'\0'};
-uint16_t binaryBufferOverflowIndex = 0;
-// Number of times the binary buffer has been filled
-uint16_t fillCount = 0;
-
-// Index to tell us how many chars we've let pass by
-uint8_t waitIndex = 0;
-// Whether or not we are waiting
-uint8_t areWaiting = 0;
-// Whether or not the binary buffer is full and ready to be written
-uint8_t writeData = 0;
-// Record type of hex line
-uint8_t recordType = '\0';
-// Buffer to hold the current hex line in its complete char form
-#define HEX_LINE_BUFFER_SIZE 64
-#define HEX_HEADER_SIZE 9
-uint8_t hexLine[HEX_LINE_BUFFER_SIZE] = {'0'};
-uint8_t hexLineIndex = 0;
-// Buffer to hold the address chars of the current hex line
-char hexAddressChars[8] = {'0','0','0','0','\0','\0','\0','\0'};
-// Used to extend the address if necessary
-char hexAddressExtensionChars[4] = {'\0','\0','\0','\0'};
-uint8_t hexAddressExtensionIndex = 0;
-
-uint8_t hexAddressIndex = 4;
-// How big the current line of data is
-char hexSizeChars[2] = {'\0', '\0'};
-uint8_t hexSizeCharsIndex = 0;
-uint16_t hexSize = 0;
-// Actual location in memory to write to
-uint32_t hexAddress = 0;
-// Last write reached (it will probably be smaller than 512 bytes)
-uint8_t lastWrite = 0;
-uint8_t doneLastWrite = 0;
-uint16_t offset = 0; // Block offset
-
 
 
 #if (DEBUG_TFTP > 0)

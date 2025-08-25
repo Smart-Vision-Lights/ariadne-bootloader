@@ -28,6 +28,8 @@ make debug328_w5100
 make debug328_w5200
 make debug328_w5500
 
+make atmega32u4_w5500_alwaysBootload_passthrough_9600
+
 mv ariadne*.hex ../
 
 make clean

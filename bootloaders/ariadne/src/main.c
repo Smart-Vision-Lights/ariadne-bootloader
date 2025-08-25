@@ -132,7 +132,6 @@ int main(void)
         if(timedOut()) {
 			if(eeprom_read_byte(EEPROM_IMG_STAT) == EEPROM_IMG_OK_VALUE) break;
 			
-
 			//TODO: determine the conditions for reseting server OR reseting socket
 			if(tftpFlashing == TRUE) {
         // Disabled because it causes weird issues with resetting the TFTP stuff with the 32u4_w5500, haven't tested other platforms
@@ -150,6 +149,9 @@ int main(void)
 				resetTick();
 				// Unset tftp flag
 				tftpFlashing = FALSE;
+				// Restart bootloader using watchdog reset
+        			wdt_enable(WDTO_15MS); // Enable watchdog with shortest timeout
+        			while(1);              // Wait for watchdog to reset MCU
 			}
 		}
 		wdt_reset();
