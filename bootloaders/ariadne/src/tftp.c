@@ -600,7 +600,7 @@ static uint8_t processPacket(void)
                   // Wait for an ack back on the serial bus
                   while ( c != 'K' && c != '\0' && c != 'P' ) { _delay_ms(20); c = getch(); }
                   // If we got an error, pass that back to the client
-                  if ( c == 'P )
+                  if ( c == 'P' )
                   {
                     externalError = 1;
                     returnCode = ERROR_UNKNOWN;
