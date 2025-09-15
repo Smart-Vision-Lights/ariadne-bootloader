@@ -23,8 +23,8 @@
 /* EEPROM values */
 #define ARIADNE_MAJVER 0
 #define ARIADNE_MAJVER_CH "0"
-#define ARIADNE_MINVER 2
-#define ARIADNE_MINVER_CH "2"
+#define ARIADNE_MINVER 3
+#define ARIADNE_MINVER_CH "3"
 
 #define EEPROM_IMG_OK_VALUE  (0xEE)
 #define EEPROM_IMG_BAD_VALUE (0xFF)

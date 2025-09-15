@@ -149,9 +149,14 @@ int main(void)
 				resetTick();
 				// Unset tftp flag
 				tftpFlashing = FALSE;
+        // Signal to any external devices that the bootloader is restarting
+        putch('R');
+        putch('S');
+        putch('T');
+        putch('\n');
 				// Restart bootloader using watchdog reset
-        			wdt_enable(WDTO_15MS); // Enable watchdog with shortest timeout
-        			while(1);              // Wait for watchdog to reset MCU
+        wdt_enable(WDTO_15MS); // Enable watchdog with shortest timeout
+        while(1);              // Wait for watchdog to reset MCU
 			}
 		}
 		wdt_reset();
