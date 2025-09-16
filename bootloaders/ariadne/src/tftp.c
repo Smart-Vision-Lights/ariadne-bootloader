@@ -589,8 +589,6 @@ static uint8_t processPacket(void)
                   // Pass hex data to the serial port
                   for ( uint8_t k = 0; k < hexLineIndex; k++ )
                   {
-                    // Don't send non-hex chars
-                    if ( !isHexChar(hexLine[k]) ) {continue;}
                     // Send char
                     putch(hexLine[k]);
                   }
