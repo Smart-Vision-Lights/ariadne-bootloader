@@ -1,7 +1,8 @@
 #ifndef util_h
 #define util_h
 
-#define TIMEOUT 10
+// 7 second timeout
+#define TIMEOUT 7
 
 #ifndef LED_START_FLASHES
 	#define LED_START_FLASHES 0
